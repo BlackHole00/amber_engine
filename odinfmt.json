@@ -1,0 +1,8 @@
+{
+  "tabs": true,
+  "newline_limit": 1,
+  "tabs_width": 4,
+  "convert_do": true,
+  "sort_imports": true,
+  "indent_cases": false,
+}
