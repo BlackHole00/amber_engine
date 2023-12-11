@@ -5,6 +5,7 @@ import "core:os"
 import "core:log"
 import "core:mem"
 import "core:slice"
+import ts "core:container/topological_sort"
 
 Mod_Id :: aec.Mod_Id
 Mod_Info :: aec.Mod_Info
@@ -20,9 +21,7 @@ Mod_Manager :: struct {
 	incremental_mod_id:        Mod_Id,
 	mod_loaders:               map[Mod_Loader_Id]Mod_Loader,
 	mod_infos:                 map[Mod_Id]Mod_Info,
-	// @index_of loaded_mods
-	mod_dependency_graph:      [dynamic]uint,
-	loaded_mods:               [dynamic]Mod_Id,
+	mod_dependency_graph:      [dynamic]Mod_Id,
 	queued_mods_to_load:       [dynamic]Mod_Id,
 	queued_mods_to_unload:     [dynamic]Mod_Id,
 }
@@ -41,8 +40,7 @@ modmanager_init :: proc(
 
 	mod_manager.mod_loaders = make(map[Mod_Loader_Id]Mod_Loader)
 	mod_manager.mod_infos = make(map[Mod_Id]Mod_Info)
-	mod_manager.mod_dependency_graph = make([dynamic]uint)
-	mod_manager.loaded_mods = make([dynamic]Mod_Id)
+	mod_manager.mod_dependency_graph = make([dynamic]Mod_Id)
 	mod_manager.queued_mods_to_load = make([dynamic]Mod_Id)
 	mod_manager.queued_mods_to_unload = make([dynamic]Mod_Id)
 }
@@ -51,7 +49,7 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debug("Freeing Mod_Manager")
 
-	for mod_id in mod_manager.loaded_mods {
+	for mod_id, _ in mod_manager.mod_infos {
 		modmanager_call_mod_deinit(mod_manager, mod_id)
 	}
 	for _, loader in mod_manager.mod_loaders {
@@ -62,7 +60,6 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 	delete(mod_manager.mod_loaders)
 	delete(mod_manager.mod_infos)
 	delete(mod_manager.mod_dependency_graph)
-	delete(mod_manager.loaded_mods)
 	delete(mod_manager.queued_mods_to_load)
 	delete(mod_manager.queued_mods_to_unload)
 }
@@ -323,7 +320,7 @@ modmanager_queue_unload_mod :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -
 		return true
 	}
 
-	if _, found := slice.linear_search(mod_manager.loaded_mods[:], mod_id); found {
+	if _, found := slice.linear_search(mod_manager.mod_dependency_graph[:], mod_id); found {
 		append(&mod_manager.queued_mods_to_unload)
 		return true
 	}
@@ -429,15 +426,11 @@ modmanager_remove_queued_mods_to_unload :: proc(mod_manager: ^Mod_Manager) {
 modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 
-	for mod_id in mod_manager.queued_mods_to_load {
-		append(&mod_manager.loaded_mods, mod_id)
-	}
 	resize(&mod_manager.queued_mods_to_load, 0)
 
 	modmanager_create_mod_dependency_graph(mod_manager)
 
-	for mod_id_idx in mod_manager.mod_dependency_graph {
-		mod_id := mod_manager.loaded_mods[mod_id_idx]
+	for mod_id in mod_manager.mod_dependency_graph {
 		mod_info := mod_manager.mod_infos[mod_id]
 
 		if mod_info.fully_loaded {
@@ -450,9 +443,40 @@ modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 
 @(private)
 modmanager_create_mod_dependency_graph :: proc(mod_manager: ^Mod_Manager) {
+	context.allocator = mod_manager.allocator
 	log.debug("Creating dependency graph")
 
-	unimplemented()
+	sorter: ts.Sorter(Mod_Id) = ---
+	ts.init(&sorter)
+	defer ts.destroy(&sorter)
+
+	for _, mod_info in mod_manager.mod_infos {
+		ts.add_key(&sorter, mod_info.identifier)
+	}
+	for _, mod_info in mod_manager.mod_infos {
+		for dependency in mod_info.dependencies {
+			dependency_id := modmanager_get_modid_from_name(mod_manager^, dependency)
+			if dependency_id == aec.INVALID_MODID {
+				continue
+			}
+
+			ts.add_dependency(&sorter, mod_info.identifier, dependency_id)
+		}
+
+		for dependant in mod_info.dependants {
+			dependant_id := modmanager_get_modid_from_name(mod_manager^, dependant)
+			if dependant_id == aec.INVALID_MODID {
+				continue
+			}
+
+			ts.add_dependency(&sorter, dependant_id, mod_info.identifier)
+		}
+	}
+
+	sorted, cycled := ts.sort(&sorter)
+	delete(cycled)
+
+	mod_manager.mod_dependency_graph = sorted
 }
 
 @(private)
