@@ -13,10 +13,6 @@
             "name": "shared",
             "path": "shared"
         },
-        {
-            "name": "interface",
-            "path": "interface"
-        }
     ],
     "enable_document_symbols": true,
     "enable_semantic_tokens": false,

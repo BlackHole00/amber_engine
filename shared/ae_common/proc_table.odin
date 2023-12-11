@@ -6,7 +6,7 @@ Proc_Table :: struct {
 	get_userconfig:                    Get_UserConfig_Proc,
 	modmanager_register_modloader:     Mod_Manager_Register_ModLoader_Proc,
 	modmanager_remove_modloader:       Mod_Manager_Remove_ModLoader_Proc,
-	modmanager_get_modloader_id:       Mod_Manager_Get_ModLoader_Id,
+	modmanager_get_modloader_id:       Mod_Manager_Get_ModLoaderId,
 	modmanager_queue_load_mod:         Mod_Manager_Queue_Load_Mod_Proc,
 	modmanager_queue_load_folder:      Mod_Manager_Queue_Load_Folder_Proc,
 	modmanager_queue_unload_mod:       Mod_Manager_Queue_Unload_Mod_Proc,
