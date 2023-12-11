@@ -1,3 +1,4 @@
 {
-  "mods_location": "build"
+  "mods_location": "build",
+  "logging_level": "Debug"
 }

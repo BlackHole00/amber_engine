@@ -1,5 +1,7 @@
 package ae_common
 
+import "core:log"
+
 Version :: struct {
 	major:    u32,
 	minor:    u32,
@@ -8,6 +10,7 @@ Version :: struct {
 
 User_Config :: struct {
 	mods_location: string,
+	logging_level: log.Level,
 }
 
 User_Config_Source_File :: string
