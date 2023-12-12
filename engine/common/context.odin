@@ -20,13 +20,12 @@ assertion_failure_proc: runtime.Assertion_Failure_Proc : proc(
 	runtime.trap()
 }
 
-@(private)
+// @(private)
 CONTEXT_DATA: struct {
 	arena:                     virtual.Arena,
 	tracking_allocator:        mem.Tracking_Allocator,
 	allocator:                 mem.Allocator,
 	temp_arena:                virtual.Arena,
-	temp_tracking_allocator:   mem.Tracking_Allocator,
 	temp_allocator:            mem.Allocator,
 	log_file:                  os.Handle,
 	console_logger:            log.Logger,
@@ -52,7 +51,8 @@ default_context_init :: proc() -> (ok: bool) {
 	if virtual.arena_init_growing(&CONTEXT_DATA.temp_arena) != .None {
 		return false
 	}
-	CONTEXT_DATA.allocator = virtual.arena_allocator(&CONTEXT_DATA.arena)
+	// CONTEXT_DATA.allocator = virtual.arena_allocator(&CONTEXT_DATA.arena)
+	CONTEXT_DATA.allocator = runtime.default_allocator()
 	CONTEXT_DATA.temp_allocator = virtual.arena_allocator(&CONTEXT_DATA.temp_arena)
 
 	if DEBUG {
@@ -62,12 +62,6 @@ default_context_init :: proc() -> (ok: bool) {
 			CONTEXT_DATA.allocator,
 		)
 		CONTEXT_DATA.allocator = mem.tracking_allocator(&CONTEXT_DATA.tracking_allocator)
-		mem.tracking_allocator_init(
-			&CONTEXT_DATA.temp_tracking_allocator,
-			CONTEXT_DATA.temp_allocator,
-			CONTEXT_DATA.allocator,
-		)
-		CONTEXT_DATA.temp_allocator = mem.tracking_allocator(&CONTEXT_DATA.temp_tracking_allocator)
 	}
 
 	CONTEXT_DATA.console_logger = log.create_console_logger(LOWEST_LOG_LEVEL)
@@ -98,17 +92,11 @@ default_context_init :: proc() -> (ok: bool) {
 }
 
 default_context_deinit :: proc() {
-	log.destroy_console_logger(CONTEXT_DATA.console_logger)
-	if CONTEXT_DATA.log_file != os.INVALID_HANDLE {
-		log.destroy_file_logger(&CONTEXT_DATA.logger)
-		os.close(CONTEXT_DATA.log_file)
-	}
-	log.destroy_multi_logger(&CONTEXT_DATA.logger)
-
-	virtual.arena_destroy(&CONTEXT_DATA.arena)
 	if DEBUG {
 		ok := true
-		log.info("Checking for memory leaks: ")
+		log.info(
+			"Checking for memory leaks (note: the logger and the tracking allocator has not been freed yet): ",
+		)
 		for _, leak in CONTEXT_DATA.tracking_allocator.allocation_map {
 			log.warnf("\t%v leaked %v bytes", leak.location, leak.size)
 			ok = false
@@ -128,6 +116,17 @@ default_context_deinit :: proc() {
 
 		mem.tracking_allocator_destroy(&CONTEXT_DATA.tracking_allocator)
 	}
+	context.allocator = CONTEXT_DATA.allocator
+
+	log.destroy_console_logger(CONTEXT_DATA.console_logger)
+	if CONTEXT_DATA.log_file != os.INVALID_HANDLE {
+		log.destroy_file_logger(&CONTEXT_DATA.logger)
+		os.close(CONTEXT_DATA.log_file)
+	}
+	log.destroy_multi_logger(&CONTEXT_DATA.logger)
+
+	// virtual.arena_destroy(&CONTEXT_DATA.arena)
+	virtual.arena_destroy(&CONTEXT_DATA.temp_arena)
 
 	CONTEXT_DATA.default_context = runtime.Context{}
 	CONTEXT_DATA.is_context_initialized = false

@@ -51,6 +51,7 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 
 	for mod_id, _ in mod_manager.mod_infos {
 		modmanager_call_mod_deinit(mod_manager, mod_id)
+
 	}
 	for _, loader in mod_manager.mod_loaders {
 		log.debug("Unloading Mod_Loader ", loader.identifier, " (", loader.description, ")...")
@@ -416,7 +417,7 @@ modmanager_remove_queued_mods_to_unload :: proc(mod_manager: ^Mod_Manager) {
 
 	for mod_id in mod_manager.queued_mods_to_unload {
 		modmanager_call_mod_deinit(mod_manager^, mod_id)
-		delete_key(&mod_manager.mod_infos, mod_id)
+		modmanager_free_mod_info(mod_manager, mod_id)
 	}
 
 	resize(&mod_manager.queued_mods_to_unload, 0)
@@ -559,5 +560,18 @@ modmanager_call_mod_deinit :: proc(
 	}
 
 	return
+}
+
+@(private)
+modmanager_free_mod_info :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) {
+	if mod_info, ok := mod_manager.mod_infos[mod_id]; !ok {
+		return
+	} else {
+		mod_manager.mod_loaders[mod_info.loader]->free_mod_info(
+			mod_info,
+			mod_manager.loader_allocator,
+		)
+		delete_key(&mod_manager.mod_infos, mod_id)
+	}
 }
 

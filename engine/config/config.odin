@@ -38,7 +38,7 @@ config_from_file :: proc(
 	}
 
 	config_content, file_open_ok := os.read_entire_file(real_config_path, allocator)
-	defer delete(config_content)
+	defer delete(config_content, allocator)
 	if !file_open_ok {
 		return .Read_Error
 	}
