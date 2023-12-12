@@ -13,6 +13,7 @@ Mod_Loader_Id :: aec.Mod_Loader_Id
 Mod_Loader :: aec.Mod_Loader
 Mod_Load_Error :: aec.Mod_Load_Error
 
+// In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
 Mod_Manager :: struct {
 	allocator:                 mem.Allocator,
 	loader_allocator:          mem.Allocator,
