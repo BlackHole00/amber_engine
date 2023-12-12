@@ -107,6 +107,25 @@ default_context_deinit :: proc() {
 
 	virtual.arena_destroy(&CONTEXT_DATA.arena)
 	if DEBUG {
+		ok := true
+		log.info("Checking for memory leaks: ")
+		for _, leak in CONTEXT_DATA.tracking_allocator.allocation_map {
+			log.warnf("\t%v leaked %v bytes", leak.location, leak.size)
+			ok = false
+		}
+		if ok {
+			log.info("\tNo memory Leaks.")
+		}
+
+		ok = true
+		log.info("Checking for bad frees: ")
+		for bad_free in CONTEXT_DATA.tracking_allocator.bad_free_array {
+			log.warnf("\t%v allocation %p was freed badly", bad_free.location, bad_free.memory)
+		}
+		if ok {
+			log.info("\tNo bad frees.")
+		}
+
 		mem.tracking_allocator_destroy(&CONTEXT_DATA.tracking_allocator)
 	}
 
