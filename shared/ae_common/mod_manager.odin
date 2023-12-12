@@ -22,7 +22,7 @@ Mod_Manager_Can_Load_File_Proc :: #type proc(file_path: string) -> bool
 Mod_Manager_Queue_Load_Mod_Proc :: #type proc(mod_path: string) -> (Mod_Load_Error, Mod_Id)
 Mod_Manager_Queue_Load_Folder_Proc :: #type proc(folder_path: string) -> bool
 Mod_Manager_Queue_Unload_Mod_Proc :: #type proc(mod_id: Mod_Id) -> bool
-Mod_Manager_Force_Load_Queued_Mods_Proc :: #type proc(mod_path: string) -> bool
+Mod_Manager_Force_Load_Queued_Mods_Proc :: #type proc() -> bool
 
 Mod_Manager_Get_Mod_ProcTable_Proc :: #type proc(mod_id: Mod_Id) -> rawptr
 Mod_Manager_Get_ModInfo_Proc :: #type proc(mod_id: Mod_Id) -> (Mod_Info, bool)

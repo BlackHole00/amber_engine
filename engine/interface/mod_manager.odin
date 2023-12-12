@@ -70,9 +70,7 @@ modmanager_queue_unload_mod: aec.Mod_Manager_Queue_Unload_Mod_Proc : proc(
 }
 
 @(private)
-modmanager_force_load_queued_mods: aec.Mod_Manager_Force_Load_Queued_Mods_Proc : proc(
-	mod_path: string,
-) -> bool {
+modmanager_force_load_queued_mods: aec.Mod_Manager_Force_Load_Queued_Mods_Proc : proc() -> bool {
 	return loader.modmanager_force_load_queued_mods(&globals.mod_manager)
 }
 

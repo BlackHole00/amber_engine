@@ -27,6 +27,6 @@ Config :: struct {
 	version:            Version,
 }
 
-Get_Config_Proc :: #type proc() -> ^Config
-Get_UserConfig_Proc :: #type proc() -> ^User_Config
+Get_Config_Proc :: #type proc() -> Config
+Get_UserConfig_Proc :: #type proc() -> User_Config
 
