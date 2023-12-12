@@ -13,6 +13,10 @@
             "name": "shared",
             "path": "shared"
         },
+        {
+            "name": "engine",
+            "path": "engine"
+        }
     ],
     "enable_document_symbols": true,
     "enable_semantic_tokens": false,

@@ -1,7 +1,7 @@
 package amber_engine_globals
 
-import "../loader"
-import cfg "../config"
+import "engine:loader"
+import cfg "engine:config"
 import aec "shared:ae_common"
 
 config: cfg.Config

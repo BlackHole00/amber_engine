@@ -1,8 +1,8 @@
 package amber_engine_interface
 
 import "core:mem"
-import "../globals"
-import "../loader"
+import "engine:globals"
+import "engine:loader"
 import aec "shared:ae_common"
 
 @(private)
