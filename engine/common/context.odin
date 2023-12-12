@@ -22,7 +22,6 @@ assertion_failure_proc: runtime.Assertion_Failure_Proc : proc(
 
 // @(private)
 CONTEXT_DATA: struct {
-	arena:                     virtual.Arena,
 	tracking_allocator:        mem.Tracking_Allocator,
 	allocator:                 mem.Allocator,
 	temp_arena:                virtual.Arena,
@@ -45,13 +44,10 @@ check_context_init_error :: proc(ok: bool) {
 
 @(deferred_out = check_context_init_error)
 default_context_init :: proc() -> (ok: bool) {
-	if virtual.arena_init_growing(&CONTEXT_DATA.arena) != .None {
-		return false
-	}
 	if virtual.arena_init_growing(&CONTEXT_DATA.temp_arena) != .None {
 		return false
 	}
-	// CONTEXT_DATA.allocator = virtual.arena_allocator(&CONTEXT_DATA.arena)
+
 	CONTEXT_DATA.allocator = runtime.default_allocator()
 	CONTEXT_DATA.temp_allocator = virtual.arena_allocator(&CONTEXT_DATA.temp_arena)
 

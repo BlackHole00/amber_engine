@@ -210,6 +210,9 @@ modmanager_queue_load_mod :: proc(
 
 	log.debug("Queuing loading of", file_path)
 
+	if modmanager_get_modid_from_path(mod_manager^, file_path) != aec.INVALID_MODID {
+		return .Duplicate_Mod, aec.INVALID_MODID
+	}
 	if !os.exists(file_path) {
 		return .Invalid_Path, aec.INVALID_MODID
 	}
@@ -260,6 +263,10 @@ modmanager_queue_load_mod :: proc(
 
 			return .Invalid_Mod, aec.INVALID_MODID
 		}
+	}
+
+	if modmanager_get_modid_from_name(mod_manager^, info.name) != aec.INVALID_MODID {
+		return .Duplicate_Mod, aec.INVALID_MODID
 	}
 
 	mod_manager.mod_infos[info.identifier] = info
@@ -365,7 +372,13 @@ modmanager_get_modid_from_name :: proc(mod_manager: Mod_Manager, name: string) -
 }
 
 modmanager_get_modid_from_path :: proc(mod_manager: Mod_Manager, path: string) -> Mod_Id {
-	unimplemented()
+	for _, info in mod_manager.mod_infos {
+		if info.file_path == path {
+			return info.identifier
+		}
+	}
+
+	return aec.INVALID_MODID
 }
 
 modmanager_is_modid_valid :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> bool {
