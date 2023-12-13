@@ -1,12 +1,17 @@
 package ae_common
 
 import "core:mem"
+import doc "shared:ae_common/doc_utils"
+
+// See `ae_interface/mod_manager.odin`
+Mod_Manager :: doc.Singleton_Symbol
 
 Mod_Load_Error :: enum {
 	Success = 0,
 	Invalid_Path,
 	Read_Error,
 	Duplicate_Mod,
+	Internal_Mod_Error,
 	Invalid_Mod,
 }
 

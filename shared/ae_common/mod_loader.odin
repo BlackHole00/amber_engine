@@ -74,11 +74,17 @@ Mod_Loader_ITable :: struct {
 	get_mod_proctable: Mod_Loader_Get_Mod_ProcTable,
 }
 
+// For a general description see `ae_interface/mod_manager.odin`
+// @memory: a mod loader should always use the allocators provided in its
+//          on_init callback
 Mod_Loader :: struct {
 	using itable: ^Mod_Loader_ITable,
-	identifier:   Mod_Loader_Id, // will be filled when the mod_loader will be registered
+	// Must be unique between mod loaders
 	name:         string,
+	// A general description of the mod loader
 	description:  string,
 	user_data:    rawptr,
+	// Will be used internally by the mod loader. Can be ignored by the user
+	identifier:   Mod_Loader_Id,
 }
 

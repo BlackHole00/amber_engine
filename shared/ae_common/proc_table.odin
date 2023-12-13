@@ -1,5 +1,10 @@
 package ae_common
 
+// The proc table is a table containing all of the procedures required for a mod
+// to interface with the engine, which needs to implement correctly the 
+// procedures.
+// For more information about the mod's interfacing see 
+// `ae_interface:AE_MOD_PROC_TABLE`
 Proc_Table :: struct {
 	get_version:                         Get_Version_Proc,
 	get_config:                          Get_Config_Proc,

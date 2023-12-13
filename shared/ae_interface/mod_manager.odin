@@ -11,7 +11,6 @@ import doc "shared:ae_common/doc_utils"
 // in the most opportune moment.
 // Please note that mod loader and mod removals are discouraged and should be
 // avoided.
-// For the implementation documentation, see `ae_common\mod_manager.odin`
 // @singleton
 // @lifetime: Mod_Manager is valid for the entire application lifetime
 // @thread_safety: Mod_Manager is thread safe
