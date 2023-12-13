@@ -1,6 +1,5 @@
 package ae_interface
 
-import "core:os"
 import aec "shared:ae_common"
 
 Version :: aec.Version

@@ -11,7 +11,7 @@ Mod_Id :: aec.Mod_Id
 Mod_Info :: aec.Mod_Info
 Mod_Loader_Id :: aec.Mod_Loader_Id
 Mod_Loader :: aec.Mod_Loader
-Mod_Loader_ITable :: aec.Mod_Loader_ITable
+Mod_Loader_Result :: aec.Mod_Loader_Result
 Mod_Load_Error :: aec.Mod_Load_Error
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
@@ -19,6 +19,7 @@ Mod_Manager :: struct {
 	allocator:                 mem.Allocator,
 	loader_allocator:          mem.Allocator,
 	loader_temp_allocator:     mem.Allocator,
+	engine_proctable:          ^aec.Proc_Table,
 	// used to generate mod_loader ids
 	incremental_mod_loader_id: Mod_Loader_Id,
 	incremental_mod_id:        Mod_Id,
@@ -32,6 +33,7 @@ Mod_Manager :: struct {
 
 modmanager_init :: proc(
 	mod_manager: ^Mod_Manager,
+	engine_proctable: ^aec.Proc_Table,
 	loader_allocator: mem.Allocator,
 	loader_temp_allocator: mem.Allocator,
 	allocator := context.allocator,
@@ -40,6 +42,7 @@ modmanager_init :: proc(
 	mod_manager.allocator = allocator
 	mod_manager.loader_allocator = loader_allocator
 	mod_manager.loader_temp_allocator = loader_temp_allocator
+	mod_manager.engine_proctable = engine_proctable
 
 	log.debug("Initializing Mod_Manager")
 
@@ -58,7 +61,7 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 		modmanager_call_mod_deinit(mod_manager, mod_id)
 
 	}
-	for _, loader in mod_manager.mod_loaders {
+	for _, &loader in mod_manager.mod_loaders {
 		log.debug("Unloading Mod_Loader ", loader.identifier, " (", loader.description, ")...")
 		loader->on_deinit()
 	}
@@ -88,7 +91,8 @@ modmanager_register_modloader :: proc(
 		sep = "",
 	)
 	switch mod_loader.on_init(
-		mod_loader,
+		&mod_loader,
+		mod_manager.engine_proctable,
 		mod_manager.loader_allocator,
 		mod_manager.loader_temp_allocator,
 	) {
@@ -112,7 +116,7 @@ modmanager_register_modloader :: proc(
 			") with warning(s):",
 			sep = "",
 		)
-		for message in mod_loader.get_last_message(mod_loader, context.allocator) {
+		for message in mod_loader.get_last_message(&mod_loader, context.allocator) {
 			log.warn("\t", message)
 			delete(message)
 		}
@@ -128,13 +132,13 @@ modmanager_register_modloader :: proc(
 			"') failed initializing with error(s):",
 			sep = "",
 		)
-		for message in mod_loader.get_last_message(mod_loader, context.allocator) {
+		for message in mod_loader.get_last_message(&mod_loader, context.allocator) {
 			log.error("\t", message)
 			delete(message)
 		}
 
 		log.debug("Deinitializing Mod_Loader", mod_loader.identifier)
-		mod_loader.on_deinit(mod_loader)
+		mod_loader.on_deinit(&mod_loader)
 
 		return aec.INVALID_MODLOADERID
 	}
@@ -162,7 +166,7 @@ modmanager_remove_modloader :: proc(mod_manager: ^Mod_Manager, loader_id: Mod_Lo
 
 	_, loader := delete_key(&mod_manager.mod_loaders, loader_id)
 	log.debug("Deinitializing Mod_Loader", loader_id)
-	loader.on_deinit(loader)
+	loader.on_deinit(&loader)
 
 	log.info("Removed Mod_Loader", loader_id)
 
@@ -186,8 +190,8 @@ modmanager_get_modloaderid_for_file :: proc(
 	mod_manager: Mod_Manager,
 	file_name: string,
 ) -> Mod_Loader_Id {
-	for id, mod_loader in mod_manager.mod_loaders {
-		if mod_loader.can_load_file(mod_loader, file_name) {
+	for id, &mod_loader in mod_manager.mod_loaders {
+		if mod_loader.can_load_file(&mod_loader, file_name) {
 			return id
 		}
 	}
@@ -203,8 +207,8 @@ modmanager_is_modloaderid_valid :: proc(
 }
 
 modmanager_can_load_file :: proc(mod_manager: Mod_Manager, file_path: string) -> bool {
-	for _, mod_loader in mod_manager.mod_loaders {
-		if mod_loader.can_load_file(mod_loader, file_path) {
+	for _, &mod_loader in mod_manager.mod_loaders {
+		if mod_loader.can_load_file(&mod_loader, file_path) {
 			return true
 		}
 	}
@@ -362,7 +366,7 @@ modmanager_get_mod_proctable :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -
 		return nil
 	}
 
-	return mod_manager.mod_loaders[mod_info.loader]->get_mod_proctable(mod_info)
+	return (&mod_manager.mod_loaders[mod_info.loader])->get_mod_proctable(mod_info)
 }
 
 modmanager_get_modinfo :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> (Mod_Info, bool) {
@@ -586,7 +590,7 @@ modmanager_free_mod_info :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) {
 	if mod_info, ok := mod_manager.mod_infos[mod_id]; !ok {
 		return
 	} else {
-		mod_manager.mod_loaders[mod_info.loader]->free_mod_info(mod_info)
+		(&mod_manager.mod_loaders[mod_info.loader])->free_mod_info(mod_info)
 		delete_key(&mod_manager.mod_infos, mod_id)
 	}
 }

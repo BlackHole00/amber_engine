@@ -40,6 +40,20 @@ file_extension_from_filename :: proc(
 	return extension, true
 }
 
+remove_file_extension :: proc(file_name: string, allocator := context.allocator) -> string {
+	context.allocator = allocator
+
+	if !strings.contains_rune(file_name, '.') {
+		return strings.clone(file_name)
+	}
+
+	trimmed := strings.trim_right_proc(file_name, proc(char: rune) -> bool {
+		return char != '.'
+	})
+
+	return strings.clone(trimmed[:len(trimmed) - 2]) // remove the trailing '.'
+}
+
 file_extension :: proc {
 	file_extension_from_handle,
 	file_extension_from_filename,

@@ -1,8 +1,5 @@
 package ae_common
 
-DEFAULT_ARCHIVE_EXTENSIONS :: [?]string{"zip", "aemod"}
-DEFAULT_LIBRARY_EXTENSIONS :: [?]string{"dll", "so", "dylib"}
-
 Mod_Id :: distinct u64
 INVALID_MODID :: (Mod_Id)(max(u64))
 
@@ -19,5 +16,7 @@ Mod_Info :: struct {
 	fully_loaded: bool,
 	// Filled at runtime by the Mod_Manager
 	identifier:   Mod_Id,
+	// Internally used by the mod loader
+	extra_data:   rawptr,
 }
 
