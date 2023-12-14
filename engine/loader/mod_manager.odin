@@ -80,12 +80,36 @@ modmanager_register_modloader :: proc(
 	context.allocator = mod_manager.allocator
 	mod_loader := mod_loader
 
+	log.info(
+		"Registering Mod_Loader ",
+		mod_loader.name,
+		" (",
+		mod_loader.description,
+		")...",
+		sep = "",
+	)
+
+	if modmanager_get_modloaderid(mod_manager^, mod_loader.name) != aec.INVALID_MODLOADERID {
+		log.warn(
+			"Could not register Mod_Loader ",
+			mod_loader.name,
+			" (",
+			mod_loader.description,
+			") could not be loaded: There is another Mod_Loader with the same name",
+			sep = "",
+		)
+		return aec.INVALID_MODLOADERID
+	}
+
 	mod_loader.identifier = modmanager_generate_modloaderid(mod_manager)
 
+
 	log.debug(
-		"Loading Mod_Loader ",
+		"Initializing Mod_Loader ",
 		mod_loader.identifier,
 		" (",
+		mod_loader.name,
+		" - ",
 		mod_loader.description,
 		")...",
 		sep = "",
@@ -97,10 +121,12 @@ modmanager_register_modloader :: proc(
 		mod_manager.loader_temp_allocator,
 	) {
 	case .Success:
-		log.info(
-			"Successfully loaded Mod_Loader ",
+		log.debug(
+			"Successfully initialized Mod_Loader ",
 			mod_loader.identifier,
 			" (",
+			mod_loader.name,
+			" - ",
 			mod_loader.description,
 			")",
 			sep = "",
@@ -109,9 +135,11 @@ modmanager_register_modloader :: proc(
 
 	case .Warning:
 		log.warn(
-			"Loaded Mod_Loader ",
+			"Initialized Mod_Loader ",
 			mod_loader.identifier,
 			" (",
+			mod_loader.name,
+			" - ",
 			mod_loader.description,
 			") with warning(s):",
 			sep = "",
@@ -128,6 +156,8 @@ modmanager_register_modloader :: proc(
 			"Mod_Loader ",
 			mod_loader.identifier,
 			" (",
+			mod_loader.name,
+			" - ",
 			mod_loader.description,
 			"') failed initializing with error(s):",
 			sep = "",
@@ -143,18 +173,30 @@ modmanager_register_modloader :: proc(
 		return aec.INVALID_MODLOADERID
 	}
 
+	log.info(
+		"Successfully registered Mod_Loader ",
+		mod_loader.identifier,
+		" (",
+		mod_loader.name,
+		" - ",
+		mod_loader.description,
+		")",
+		sep = "",
+	)
+
 	return mod_loader.identifier
 }
 
 modmanager_remove_modloader :: proc(mod_manager: ^Mod_Manager, loader_id: Mod_Loader_Id) -> bool {
 	context.allocator = mod_manager.allocator
 
-	log.debug("Removing Mod_Loader", loader_id)
 	if loader_id not_in mod_manager.mod_loaders {
 		log.warn("Could not delete Mod_Loader ", loader_id, ": Mod_Loader_Id not found", sep = "")
 
 		return false
 	}
+
+	log.debug("Removing Mod_Loader", loader_id)
 
 	log.debug("Unitializing mods related to Mod_Loader", loader_id)
 	for _, info in mod_manager.mod_infos {
@@ -168,7 +210,7 @@ modmanager_remove_modloader :: proc(mod_manager: ^Mod_Manager, loader_id: Mod_Lo
 	log.debug("Deinitializing Mod_Loader", loader_id)
 	loader.on_deinit(&loader)
 
-	log.info("Removed Mod_Loader", loader_id)
+	log.info("Successfully removed Mod_Loader", loader_id)
 
 	return true
 }
@@ -225,28 +267,58 @@ modmanager_queue_load_mod :: proc(
 ) {
 	context.allocator = mod_manager.allocator
 
-	log.debug("Queuing loading of", file_path)
+	log.info("Queueing up loading of mod ", file_path, "...", sep = "")
 
 	if modmanager_get_modid_from_path(mod_manager^, file_path) != aec.INVALID_MODID {
+		log.warn(
+			"Could not queue loading of mod ",
+			file_path,
+			": another mod with the same path has been already registered",
+			sep = "",
+		)
+
 		return .Duplicate_Mod, aec.INVALID_MODID
 	}
 	if !os.exists(file_path) {
+		log.warn(
+			"Could not queue loading of mod ",
+			file_path,
+			": The provided file path does not exist",
+			sep = "",
+		)
+
 		return .Invalid_Path, aec.INVALID_MODID
 	}
 
 	loader_id := modmanager_get_modloaderid_for_file(mod_manager^, file_path)
 	if loader_id == aec.INVALID_MODLOADERID {
+		log.warn(
+			"Could not queue loading of mod ",
+			file_path,
+			": There is not a valid Mod_Loader for the provided mod file",
+			sep = "",
+		)
+
 		return .Invalid_Mod, aec.INVALID_MODID
 	}
 
-	log.debug("Generating Mod_Info for mod", file_path)
+	log.debug("Queuing loading of", file_path)
+
+	log.debug("Obtaining Mod_Info for mod", file_path)
 	loader := mod_manager.mod_loaders[loader_id]
 	info, error := loader->generate_mod_info(file_path)
 	info.identifier = modmanager_generate_modid(mod_manager)
 	switch error {
 	case .Success:
 		{
-			log.info("Obtained Mod_Info of mod ", info.identifier, " (", info.name, ")", sep = "")
+			log.debug(
+				"Successfully obtained Mod_Info of mod ",
+				info.identifier,
+				" (",
+				info.name,
+				")",
+				sep = "",
+			)
 		}
 	case .Warning:
 		{
@@ -266,11 +338,11 @@ modmanager_queue_load_mod :: proc(
 	case .Error:
 		{
 			log.error(
-				"Could not load Mod_Info of mod ",
+				"Could not queue loading of mod ",
 				info.identifier,
 				" (from file: ",
 				file_path,
-				") with error(s):",
+				"): Could not obtain Mod_Info of mod with error(s):",
 				sep = "",
 			)
 			for message in loader->get_last_message(context.allocator) {
@@ -283,11 +355,29 @@ modmanager_queue_load_mod :: proc(
 	}
 
 	if modmanager_get_modid_from_name(mod_manager^, info.name) != aec.INVALID_MODID {
+		log.warn(
+			"Could not queue loading of mod ",
+			info.identifier,
+			" (",
+			info.name,
+			"): another mod with the same name has already been registered",
+			sep = "",
+		)
+
 		return .Duplicate_Mod, aec.INVALID_MODID
 	}
 
 	mod_manager.mod_infos[info.identifier] = info
 	append(&mod_manager.queued_mods_to_load, info.identifier)
+
+	log.info(
+		"Successfully queued loading of mod ",
+		info.identifier,
+		" (",
+		info.name,
+		")",
+		sep = "",
+	)
 
 	return .Success, info.identifier
 }
@@ -300,30 +390,74 @@ modmanager_queue_load_folder :: proc(
 ) {
 	context.allocator = mod_manager.allocator
 
-	log.debug("Loading mod folder", folder_path)
+	log.info("Queuing up loading of mod folder ", folder_path, "...", sep = "")
 
 	if !os.exists(folder_path) {
+		log.warn(
+			"Could not queue loading of mod folder ",
+			folder_path,
+			": The provided path does not exist",
+			sep = "",
+		)
 		return false
+	}
+
+	if !os.is_dir(folder_path) {
+		log.warn(
+			"Could not queue loading of mod folder ",
+			folder_path,
+			": The provided path is not a folder",
+			sep = "",
+		)
 	}
 
 	folder_handle, handle_ok := os.open(folder_path)
 	if handle_ok != os.ERROR_NONE {
+		log.warn(
+			"Could not queue loading of mod folder ",
+			folder_path,
+			": Could not open the folder",
+			sep = "",
+		)
 		return false
 	}
 	defer os.close(folder_handle)
 
 	file_infos, infos_ok := os.read_dir(folder_handle, 0)
 	if infos_ok != os.ERROR_NONE {
+		log.warn(
+			"Could not queue loading of mod folder ",
+			folder_path,
+			": Could not obtain file infos",
+			sep = "",
+		)
 		return false
 	}
 	defer os.file_info_slice_delete(file_infos)
 
 	success = true
 	for file_info in file_infos {
+		if !modmanager_can_load_file(mod_manager^, file_info.fullpath) {
+			log.warn(
+				"Skipping file",
+				file_info.fullpath,
+				": There is not a valid Mod_Loader for the provided mod file",
+			)
+
+			success = false
+			continue
+		}
+
 		if mod_error, _ := modmanager_queue_load_mod(mod_manager, file_info.fullpath);
 		   mod_error != .Success {
 			success = false
 		}
+	}
+
+	if success {
+		log.info("Successfully queued loading of mod folder", folder_path)
+	} else {
+		log.warn("Queued loading of mod folder", folder_path, "with errors")
 	}
 
 	return
@@ -332,10 +466,12 @@ modmanager_queue_load_folder :: proc(
 modmanager_queue_unload_mod :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -> (ok: bool) {
 	context.allocator = mod_manager.allocator
 	defer if ok {
-		log.debug("Queued unloading of mod", mod_id)
+		log.info("Successfully queued unloading of mod", mod_id)
 	}
 
 	if _, found := slice.linear_search(mod_manager.queued_mods_to_unload[:], mod_id); found {
+		log.warn("The mod", mod_id, "is already sheduled for unloading")
+
 		return true
 	}
 
@@ -350,10 +486,18 @@ modmanager_queue_unload_mod :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -
 		return true
 	}
 
+	log.warn(
+		"Could not queue unloading of mod ",
+		mod_id,
+		": The provided Mod_Id does not seem to be valid",
+		sep = "",
+	)
 	return false
 }
 
 modmanager_force_load_queued_mods :: proc(mod_manager: ^Mod_Manager) -> bool {
+	log.info("Loading and unloading queued up mod changes...")
+
 	modmanager_remove_queued_mods_to_unload(mod_manager)
 	modmanager_add_queued_mods_to_load(mod_manager)
 
@@ -363,6 +507,13 @@ modmanager_force_load_queued_mods :: proc(mod_manager: ^Mod_Manager) -> bool {
 modmanager_get_mod_proctable :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> rawptr {
 	mod_info, info_ok := mod_manager.mod_infos[mod_id]
 	if !info_ok {
+		log.warn(
+			"Could not obtain proc table of mod ",
+			mod_id,
+			": The provided Mod_Id does not seem to be valid",
+			sep = "",
+		)
+
 		return nil
 	}
 
@@ -370,7 +521,19 @@ modmanager_get_mod_proctable :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -
 }
 
 modmanager_get_modinfo :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> (Mod_Info, bool) {
-	return mod_manager.mod_infos[mod_id]
+	mod_info, info_ok := mod_manager.mod_infos[mod_id]
+	if !info_ok {
+		log.warn(
+			"Could not obtain Mod_Info of mod ",
+			mod_id,
+			": The provided Mod_Id does not seem to be valid",
+			sep = "",
+		)
+
+		return {}, false
+	}
+
+	return mod_info, true
 }
 
 modmanager_get_modid_from_name :: proc(mod_manager: Mod_Manager, name: string) -> Mod_Id {
@@ -452,6 +615,7 @@ modmanager_remove_queued_mods_to_unload :: proc(mod_manager: ^Mod_Manager) {
 modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 
+
 	resize(&mod_manager.queued_mods_to_load, 0)
 
 	modmanager_create_mod_dependency_graph(mod_manager)
@@ -501,6 +665,24 @@ modmanager_create_mod_dependency_graph :: proc(mod_manager: ^Mod_Manager) {
 
 	sorted, cycled := ts.sort(&sorter)
 	delete(cycled)
+
+	log.debug("Successfully created mod dependency graph:")
+	for mod_id in sorted {
+		mod_info := mod_manager.mod_infos[mod_id]
+
+		log.info(
+			"\t",
+			mod_id,
+			" - ",
+			mod_info.name,
+			" (dependences: ",
+			mod_info.dependencies,
+			"), (dependats: ",
+			mod_info.dependants,
+			")",
+			sep = "",
+		)
+	}
 
 	mod_manager.mod_dependency_graph = sorted
 }
