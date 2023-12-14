@@ -57,6 +57,7 @@ remove_file_extension :: proc(file_name: string, allocator := context.allocator)
 	} else {
 		splits := strings.split(trimmed, "/")
 	}
+	defer delete(splits)
 
 	return strings.clone(splits[len(splits) - 1])
 }

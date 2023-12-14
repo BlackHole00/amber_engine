@@ -1,5 +1,5 @@
 build
-mods/**.dylib
-mods/**.so
-mods/**.dll
+mods/*.dylib
+mods/*.so
+mods/*.dll
 **/.DS_Store

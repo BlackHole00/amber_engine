@@ -5,6 +5,8 @@ import aec "shared:ae_common"
 
 proctable_init :: proc(table: ^aec.Proc_Table) {
 	table.get_version = config.get_version
+	table.get_config = get_config
+	table.get_userconfig = get_userconfig
 
 	table.modmanager_register_modloader = modmanager_register_modloader
 	table.modmanager_remove_modloader = modmanager_remove_modloader

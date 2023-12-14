@@ -186,29 +186,32 @@ librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
 			" (",
 			mod_info.name,
 			") does not have a valid AE_INIT_PROC symbol exported. The mod might be broken",
+			sep = "",
 		)
 		return .Invalid_Mod
 	}
 
-	if init_proc_address == nil {
+	if (^aec.Mod_Init_Proc)(init_proc_address)^ == nil {
 		log.error(
 			"Library mod ",
 			mod_info.identifier,
 			" (",
 			mod_info.name,
 			") does not have set an init proc ",
+			sep = "",
 		)
 
 		return .Success
 	}
 
-	if !(aec.Mod_Init_Proc)(init_proc_address)() {
+	if !(^aec.Mod_Init_Proc)(init_proc_address)^() {
 		log.error(
 			"Library mod ",
 			mod_info.identifier,
 			" (",
 			mod_info.name,
 			") failed initializing ",
+			sep = "",
 		)
 
 		return .Internal_Mod_Error
@@ -237,23 +240,25 @@ librarymodloader_unload_mod: aec.Mod_Loader_Unload_Mod_Proc : proc(
 			" (",
 			mod_info.name,
 			") does not have a valid AE_DEINIT_PROC symbol exported. The mod might be broken",
+			sep = "",
 		)
 		return .Invalid_Mod
 	}
 
-	if deinit_proc_address == nil {
+	if (^aec.Mod_Deinit_Proc)(deinit_proc_address)^ == nil {
 		log.error(
 			"Library mod ",
 			mod_info.identifier,
 			" (",
 			mod_info.name,
 			") does not have set an deinit proc ",
+			sep = "",
 		)
 
 		return .Success
 	}
 
-	(aec.Mod_Deinit_Proc)(deinit_proc_address)()
+	(^aec.Mod_Deinit_Proc)(deinit_proc_address)^()
 
 	return .Success
 }
@@ -278,6 +283,7 @@ librarymodloader_get_mod_proctable: aec.Mod_Loader_Get_Mod_ProcTable_Proc : proc
 			" (",
 			mod_info.name,
 			") does not have a valid AE_PROC_TABLE symbol exported. The mod might be broken",
+			sep = "",
 		)
 		return nil
 	}

@@ -58,7 +58,9 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 	log.debug("Freeing Mod_Manager")
 
 	for mod_id, mod_info in mod_manager.mod_infos {
-		modmanager_call_mod_deinit(mod_manager, mod_id)
+		if mod_info.fully_loaded {
+			modmanager_call_mod_deinit(mod_manager, mod_id)
+		}
 		(&mod_manager.mod_loaders[mod_info.loader])->free_mod_info(mod_info)
 	}
 	for _, &loader in mod_manager.mod_loaders {
@@ -641,7 +643,7 @@ modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 			continue
 		}
 
-		modmanager_call_mod_init(mod_manager^, mod_id)
+		modmanager_call_mod_init(mod_manager, mod_id)
 	}
 }
 
@@ -721,7 +723,7 @@ modmanager_get_modloader_from_mod_id :: #force_inline proc(
 
 @(private)
 modmanager_call_mod_init :: proc(
-	mod_manager: Mod_Manager,
+	mod_manager: ^Mod_Manager,
 	mod_id: Mod_Id,
 ) -> (
 	err: Mod_Load_Error,
@@ -730,7 +732,7 @@ modmanager_call_mod_init :: proc(
 	log.info("Loading mod ", info.identifier, " (", info.name, ")...", sep = "")
 
 	err =
-	modmanager_get_modloader_from_mod_id(mod_manager, mod_id)->load_mod(
+	modmanager_get_modloader_from_mod_id(mod_manager^, mod_id)->load_mod(
 		mod_manager.mod_infos[mod_id],
 	)
 
@@ -747,6 +749,9 @@ modmanager_call_mod_init :: proc(
 			sep = "",
 		)
 	}
+
+	info.fully_loaded = true
+	mod_manager.mod_infos[mod_id] = info
 
 	return
 }
@@ -767,7 +772,7 @@ modmanager_call_mod_deinit :: proc(
 	)
 
 	if err == .Success {
-		log.info("Mod ", info.identifier, " (", info.name, ") successfully unloaded")
+		log.info("Mod ", info.identifier, " (", info.name, ") successfully unloaded", sep = "")
 	} else {
 		log.warn(
 			"Mod ",
