@@ -37,7 +37,7 @@ file_extension_from_filename :: proc(
 	defer delete(splits)
 
 	extension := splits[len(splits) - 1]
-	return extension, true
+	return strings.clone(extension), true
 }
 
 remove_file_extension :: proc(file_name: string, allocator := context.allocator) -> string {
@@ -50,8 +50,15 @@ remove_file_extension :: proc(file_name: string, allocator := context.allocator)
 	trimmed := strings.trim_right_proc(file_name, proc(char: rune) -> bool {
 		return char != '.'
 	})
+	trimmed = trimmed[:len(trimmed) - 1] // remove the trailing '.'
 
-	return strings.clone(trimmed[:len(trimmed) - 2]) // remove the trailing '.'
+	when ODIN_OS == .Windows {
+		splits := strings.split(trimmed, "\\")
+	} else {
+		splits := strings.split(trimmed, "/")
+	}
+
+	return strings.clone(splits[len(splits) - 1])
 }
 
 file_extension :: proc {

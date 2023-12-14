@@ -8,6 +8,6 @@ import aec "shared:ae_common"
 // All the interface procedures call procedures inside this table
 @(require)
 @(export)
-@(link_name = aec.MOD_PROCTABLE_SYMBOL_NAME)
+@(link_name = aec.MOD_ENGINE_PROC_TABLE_SYMBOL_NAME)
 AE_MOD_PROC_TABLE: ^aec.Proc_Table
 

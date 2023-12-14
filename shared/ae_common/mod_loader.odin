@@ -2,8 +2,6 @@ package ae_common
 
 import "core:mem"
 
-MOD_PROCTABLE_SYMBOL_NAME :: "AE_MOD_PROC_TABLE"
-
 DEFAULT_ARCHIVE_EXTENSIONS :: [?]string{"zip", "aemod"}
 DEFAULT_LIBRARY_EXTENSIONS :: [?]string{"dll", "so", "dylib"}
 DEFAULT_ARCHIVE_MODLOADER_NAME :: "archive_mod_loader"
@@ -30,10 +28,12 @@ Mod_Loader_On_Init_Proc :: #type proc(
 // manager or at the application shutdown)
 Mod_Loader_On_Deinit_Proc :: #type proc(loader: ^Mod_Loader)
 
-// Generates the `Mod_Info` of a mod (identified by its path)
+// Generates the `Mod_Info` of a mod (identified by its path). The identifier of
+// the returned Mod_Info must be equal to the provided Mod_Id
 Mod_Loader_Generate_Mod_Info_Proc :: #type proc(
 	loader: ^Mod_Loader,
 	mod_path: string,
+	mod_id: Mod_Id,
 ) -> (
 	Mod_Info,
 	Mod_Loader_Result,
@@ -46,15 +46,11 @@ Mod_Loader_Free_Mod_Info_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_I
 Mod_Loader_Can_Load_File_Proc :: #type proc(loader: ^Mod_Loader, mod_path: string) -> bool
 
 // If any of the mod loader procedures fails, this procedure will be called.
-// The string must be allocated with the allocator passed to the procedure and 
-// will be freed by the caller.
-Mod_Loader_Get_Last_Message_Proc :: #type proc(
-	loader: ^Mod_Loader,
-	allocator: mem.Allocator,
-) -> (
-	string,
-	bool,
-)
+// If there are any other messages this function must return true as the second 
+// argument
+Mod_Loader_Get_Last_Message_Proc :: #type proc(loader: ^Mod_Loader) -> (string, bool)
+
+Mod_Loader_Free_Message_Proc :: #type proc(loader: ^Mod_Loader, message: string)
 
 // Loads a mod (usually by applying its config config files and loading its
 // shared library)
@@ -66,7 +62,7 @@ Mod_Loader_Unload_Mod_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info
 // Gets the proc table of a mod. If the mod does not have a proc table, it 
 // can return null. For further documentation see 
 // `ae_interface:Mod_Proc_Table`
-Mod_Loader_Get_Mod_ProcTable :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> rawptr
+Mod_Loader_Get_Mod_ProcTable_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> rawptr
 
 // Mod_Loader_ITable is a interface table that every Mod Loader must implement.
 // Its procedures will be called by the mod manager when opportune
@@ -77,9 +73,10 @@ Mod_Loader_ITable :: struct {
 	free_mod_info:     Mod_Loader_Free_Mod_Info_Proc,
 	can_load_file:     Mod_Loader_Can_Load_File_Proc,
 	get_last_message:  Mod_Loader_Get_Last_Message_Proc,
+	free_message:      Mod_Loader_Free_Message_Proc,
 	load_mod:          Mod_Loader_Load_Mod_Proc,
 	unload_mod:        Mod_Loader_Unload_Mod_Proc,
-	get_mod_proctable: Mod_Loader_Get_Mod_ProcTable,
+	get_mod_proctable: Mod_Loader_Get_Mod_ProcTable_Proc,
 }
 
 // For a general description see `ae_interface/mod_manager.odin`

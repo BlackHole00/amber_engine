@@ -39,5 +39,6 @@ main :: proc() {
 	loader.modmanager_register_modloader(&globals.mod_manager, globals.library_mod_loader)
 
 	loader.modmanager_queue_load_folder(&globals.mod_manager, globals.config.mods_location)
+	// loader.modmanager_force_load_queued_mods(&globals.mod_manager)
 }
 

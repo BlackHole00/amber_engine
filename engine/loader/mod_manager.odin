@@ -57,9 +57,9 @@ modmanager_free :: proc(mod_manager: Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debug("Freeing Mod_Manager")
 
-	for mod_id, _ in mod_manager.mod_infos {
+	for mod_id, mod_info in mod_manager.mod_infos {
 		modmanager_call_mod_deinit(mod_manager, mod_id)
-
+		(&mod_manager.mod_loaders[mod_info.loader])->free_mod_info(mod_info)
 	}
 	for _, &loader in mod_manager.mod_loaders {
 		log.debug("Unloading Mod_Loader ", loader.identifier, " (", loader.description, ")...")
@@ -144,9 +144,9 @@ modmanager_register_modloader :: proc(
 			") with warning(s):",
 			sep = "",
 		)
-		for message in mod_loader.get_last_message(&mod_loader, context.allocator) {
+		for message in mod_loader->get_last_message() {
 			log.warn("\t", message)
-			delete(message)
+			mod_loader->free_message(message)
 		}
 
 		mod_manager.mod_loaders[mod_loader.identifier] = mod_loader
@@ -162,9 +162,9 @@ modmanager_register_modloader :: proc(
 			"') failed initializing with error(s):",
 			sep = "",
 		)
-		for message in mod_loader.get_last_message(&mod_loader, context.allocator) {
+		for message in mod_loader->get_last_message() {
 			log.error("\t", message)
-			delete(message)
+			mod_loader->free_message(message)
 		}
 
 		log.debug("Deinitializing Mod_Loader", mod_loader.identifier)
@@ -306,8 +306,8 @@ modmanager_queue_load_mod :: proc(
 
 	log.debug("Obtaining Mod_Info for mod", file_path)
 	loader := mod_manager.mod_loaders[loader_id]
-	info, error := loader->generate_mod_info(file_path)
-	info.identifier = modmanager_generate_modid(mod_manager)
+	mod_id := modmanager_generate_modid(mod_manager)
+	info, error := loader->generate_mod_info(file_path, mod_id)
 	switch error {
 	case .Success:
 		{
@@ -330,9 +330,9 @@ modmanager_queue_load_mod :: proc(
 				") with warning(s):",
 				sep = "",
 			)
-			for message in loader->get_last_message(context.allocator) {
+			for message in loader->get_last_message() {
 				log.warn("\t", message)
-				delete(message)
+				loader->free_message(message)
 			}
 		}
 	case .Error:
@@ -345,13 +345,27 @@ modmanager_queue_load_mod :: proc(
 				"): Could not obtain Mod_Info of mod with error(s):",
 				sep = "",
 			)
-			for message in loader->get_last_message(context.allocator) {
+			for message in loader->get_last_message() {
 				log.error("\t", message)
-				delete(message)
+				loader->free_message(message)
 			}
 
 			return .Invalid_Mod, aec.INVALID_MODID
 		}
+	}
+
+	if info.identifier != mod_id {
+		log.error(
+			"The Mod_Loader ",
+			loader.identifier,
+			" (",
+			loader.name,
+			" - ",
+			loader.description,
+			") returned a Mod_Info with an identifier different from the provided Mod_Id. It will be fixed by the Mod_Manager",
+			sep = "",
+		)
+		info.identifier = mod_id
 	}
 
 	if modmanager_get_modid_from_name(mod_manager^, info.name) != aec.INVALID_MODID {
@@ -635,6 +649,8 @@ modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 modmanager_create_mod_dependency_graph :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debug("Creating dependency graph")
+
+	delete(mod_manager.mod_dependency_graph)
 
 	sorter: ts.Sorter(Mod_Id) = ---
 	ts.init(&sorter)
