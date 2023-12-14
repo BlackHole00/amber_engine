@@ -670,7 +670,7 @@ modmanager_create_mod_dependency_graph :: proc(mod_manager: ^Mod_Manager) {
 	for mod_id in sorted {
 		mod_info := mod_manager.mod_infos[mod_id]
 
-		log.info(
+		log.debug(
 			"\t",
 			mod_id,
 			" - ",
@@ -711,7 +711,7 @@ modmanager_call_mod_init :: proc(
 	err: Mod_Load_Error,
 ) {
 	info := mod_manager.mod_infos[mod_id]
-	log.debug("Loading mod ", info.identifier, " (", info.name, ")...", sep = "")
+	log.info("Loading mod ", info.identifier, " (", info.name, ")...", sep = "")
 
 	err =
 	modmanager_get_modloader_from_mod_id(mod_manager, mod_id)->load_mod(
@@ -743,7 +743,7 @@ modmanager_call_mod_deinit :: proc(
 	err: Mod_Load_Error,
 ) {
 	info := mod_manager.mod_infos[mod_id]
-	log.debug("Unloading mod ", info.identifier, " (", info.name, ")...", sep = "")
+	log.info("Unloading mod ", info.identifier, " (", info.name, ")...", sep = "")
 
 	err =
 	modmanager_get_modloader_from_mod_id(mod_manager, mod_id)->unload_mod(
