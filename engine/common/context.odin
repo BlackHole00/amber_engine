@@ -20,7 +20,7 @@ assertion_failure_proc: runtime.Assertion_Failure_Proc : proc(
 	runtime.trap()
 }
 
-// @(private)
+@(private)
 CONTEXT_DATA: struct {
 	tracking_allocator:        mem.Tracking_Allocator,
 	allocator:                 mem.Allocator,
@@ -61,10 +61,13 @@ default_context_init :: proc() -> (ok: bool) {
 	}
 
 	CONTEXT_DATA.console_logger = log.create_console_logger(LOWEST_LOG_LEVEL)
-	open_file_args :=
-		os.O_CREATE | os.O_WRONLY if !os.exists(LOGGER_FILE) else os.O_RDWR | os.O_APPEND
-	if handle, handle_ok := os.open(LOGGER_FILE, open_file_args); handle_ok == os.ERROR_NONE {
-
+	if os.exists(LOGGER_FILE) {
+		os.remove(LOGGER_FILE)
+	}
+	open_file_args := os.O_CREATE | os.O_WRONLY
+	open_mode := os.S_IRUSR | os.S_IWUSR
+	if handle, handle_ok := os.open(LOGGER_FILE, open_file_args, open_mode);
+	   handle_ok == os.ERROR_NONE {
 		CONTEXT_DATA.log_file = handle
 		CONTEXT_DATA.file_logger = log.create_file_logger(handle, LOWEST_LOG_LEVEL)
 		CONTEXT_DATA.logger = log.create_multi_logger(
@@ -117,11 +120,9 @@ default_context_deinit :: proc() {
 	log.destroy_console_logger(CONTEXT_DATA.console_logger)
 	if CONTEXT_DATA.log_file != os.INVALID_HANDLE {
 		log.destroy_file_logger(&CONTEXT_DATA.logger)
-		os.close(CONTEXT_DATA.log_file)
 	}
 	log.destroy_multi_logger(&CONTEXT_DATA.logger)
 
-	// virtual.arena_destroy(&CONTEXT_DATA.arena)
 	virtual.arena_destroy(&CONTEXT_DATA.temp_arena)
 
 	CONTEXT_DATA.default_context = runtime.Context{}
