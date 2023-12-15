@@ -19,6 +19,7 @@ INVALID_MODLOADERID :: (Mod_Loader_Id)(max(u64))
 // the mod loader
 Mod_Loader_On_Init_Proc :: #type proc(
 	loader: ^Mod_Loader,
+	mod_loader_id: Mod_Loader_Id,
 	engine_proctable: ^Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
@@ -82,5 +83,67 @@ Mod_Loader :: struct {
 	user_data:    rawptr,
 	// Will be used internally by the mod loader. Can be ignored by the user
 	identifier:   Mod_Loader_Id,
+}
+
+// See `Mod_Loader_On_Init_Proc`
+modloader_init :: #force_inline proc(
+	mod_loader: ^Mod_Loader,
+	mod_loader_id: Mod_Loader_Id,
+	engine_proctable: ^Proc_Table,
+	allocator: mem.Allocator,
+	temp_allocator: mem.Allocator,
+) -> Mod_Loader_Result {
+	return mod_loader->on_init(mod_loader_id, engine_proctable, allocator, temp_allocator)
+}
+
+// See `Mod_Loader_On_Deinit_Proc`
+modloader_deinit :: #force_inline proc(mod_loader: ^Mod_Loader) {
+	mod_loader->on_deinit()
+}
+
+// See `Mod_Loader_Generate_Mod_Info_Proc`
+modloader_generate_mod_info :: #force_inline proc(
+	mod_loader: ^Mod_Loader,
+	mod_path: string,
+	mod_id: Mod_Id,
+) -> (
+	Mod_Info,
+	Mod_Loader_Result,
+) {
+	return mod_loader->generate_mod_info(mod_path, mod_id)
+}
+
+// See `Mod_Loader_Free_Mod_Info_Proc`
+modloader_free_mod_info :: #force_inline proc(mod_loader: ^Mod_Loader, mod_info: Mod_Info) {
+	mod_loader->free_mod_info(mod_info)
+}
+
+// See `Mod_Loader_Can_Load_File_Proc`
+modloader_can_load_file :: #force_inline proc(mod_loader: ^Mod_Loader, mod_path: string) -> bool {
+	return mod_loader->can_load_file(mod_path)
+}
+
+// See `Mod_Loader_Load_Mod_Proc`
+modloader_load_mod :: #force_inline proc(
+	mod_loader: ^Mod_Loader,
+	mod_info: Mod_Info,
+) -> Mod_Load_Error {
+	return mod_loader->load_mod(mod_info)
+}
+
+// See `Mod_Loader_Unload_Mod_Proc`
+modloader_unload_mod :: #force_inline proc(
+	mod_loader: ^Mod_Loader,
+	mod_info: Mod_Info,
+) -> Mod_Load_Error {
+	return mod_loader->unload_mod(mod_info)
+}
+
+// See `Mod_Loader_Get_Mod_ProcTable_Proc`
+modloader_get_mod_proctable :: #force_inline proc(
+	mod_loader: ^Mod_Loader,
+	mod_info: Mod_Info,
+) -> rawptr {
+	return mod_loader->get_mod_proctable(mod_info)
 }
 

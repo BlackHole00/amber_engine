@@ -1,6 +1,7 @@
 package amber_engine_loader
 
 import "core:mem"
+import "core:os"
 import "core:log"
 import "core:strings"
 import "core:dynlib"
@@ -43,6 +44,7 @@ Library_Mod_Info_Data :: struct {
 @(private)
 librarymodloader_on_init: aec.Mod_Loader_On_Init_Proc : proc(
 	loader: ^Mod_Loader,
+	mod_loader_id: Mod_Loader_Id,
 	engine_proctable: ^aec.Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
@@ -53,6 +55,7 @@ librarymodloader_on_init: aec.Mod_Loader_On_Init_Proc : proc(
 	data.engine_proctable = engine_proctable
 	data.library_handles = make(map[Mod_Id]dynlib.Library)
 
+	loader.identifier = mod_loader_id
 	loader.user_data = data
 
 	return .Success
@@ -80,8 +83,31 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
 
+	log.debug("Generating mod info of mod ", mod_id, " (", mod_path, ")...", sep = "")
+
+	if !librarymodloader_can_load_file(loader, mod_path) {
+		log.error(
+			"Could not generate Mod_Info of mod ",
+			mod_id,
+			" (",
+			mod_path,
+			"): The provided path is not valid or loadable by this mod loader",
+			sep = "",
+		)
+		return {}, .Error
+	}
+
+	log.debug("Loading up library", mod_path)
 	library, library_ok := dynlib.load_library(mod_path, true)
 	if !library_ok {
+		log.error(
+			"Could not generate Mod_Info of mod ",
+			mod_id,
+			" (",
+			mod_path,
+			"): Could not open the library, it might be built for the wrong architecture",
+			sep = "",
+		)
 		return {}, .Error
 	}
 
@@ -91,6 +117,16 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	); proctable_ok {
 		(^^aec.Proc_Table)(mod_proctable_address)^ = data.engine_proctable
 	} else {
+
+		log.error(
+			"Could not generate Mod_Info of mod ",
+			mod_id,
+			" (",
+			mod_path,
+			"): The Provided library does not contain a MOD_ENGINE_PROC_TABLE symbol name. The mod might be broken",
+			sep = "",
+		)
+
 		dynlib.unload_library(library)
 		return {}, .Error
 	}
@@ -115,6 +151,7 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
 
+	log.debug("Unloading library", mod_info.file_path)
 	dynlib.unload_library(data.library_handles[mod_info.identifier])
 
 	delete(mod_info.name)
@@ -129,6 +166,10 @@ librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
 	data := (^Library_Mod_Loader_Data)(loader.user_data)
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
+
+	if !os.exists(mod_path) || os.is_dir(mod_path) {
+		return false
+	}
 
 	mod_extension := common.file_extension(mod_path)
 	defer delete(mod_extension)
