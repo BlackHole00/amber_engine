@@ -22,8 +22,6 @@ LIBRARYMODLOADER_ITABLE := aec.Mod_Loader_ITable {
 	generate_mod_info = librarymodloader_generate_mod_info,
 	free_mod_info     = librarymodloader_free_mod_info,
 	can_load_file     = librarymodloader_can_load_file,
-	get_last_message  = librarymodloader_get_last_message,
-	free_message      = librarymodloader_free_message,
 	load_mod          = librarymodloader_load_mod,
 	unload_mod        = librarymodloader_unload_mod,
 	get_mod_proctable = librarymodloader_get_mod_proctable,
@@ -142,28 +140,6 @@ librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
 	} else {
 		return mod_extension == "so"
 	}
-}
-
-@(private)
-librarymodloader_get_last_message: aec.Mod_Loader_Get_Last_Message_Proc : proc(
-	loader: ^Mod_Loader,
-) -> (
-	string,
-	bool,
-) {
-	data := (^Library_Mod_Loader_Data)(loader.user_data)
-	context.allocator = data.allocator
-
-	return "", false
-}
-
-@(private)
-librarymodloader_free_message: aec.Mod_Loader_Free_Message_Proc : proc(
-	loader: ^Mod_Loader,
-	message: string,
-) {
-	data := (^Library_Mod_Loader_Data)(loader.user_data)
-	context.allocator = data.allocator
 }
 
 @(private)

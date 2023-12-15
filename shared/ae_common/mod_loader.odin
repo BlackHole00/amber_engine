@@ -45,13 +45,6 @@ Mod_Loader_Free_Mod_Info_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_I
 // Checks if the mod loader is able to load a mod (identified by its path)
 Mod_Loader_Can_Load_File_Proc :: #type proc(loader: ^Mod_Loader, mod_path: string) -> bool
 
-// If any of the mod loader procedures fails, this procedure will be called.
-// If there are any other messages this function must return true as the second 
-// argument
-Mod_Loader_Get_Last_Message_Proc :: #type proc(loader: ^Mod_Loader) -> (string, bool)
-
-Mod_Loader_Free_Message_Proc :: #type proc(loader: ^Mod_Loader, message: string)
-
 // Loads a mod (usually by applying its config config files and loading its
 // shared library)
 Mod_Loader_Load_Mod_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> Mod_Load_Error
@@ -72,8 +65,6 @@ Mod_Loader_ITable :: struct {
 	generate_mod_info: Mod_Loader_Generate_Mod_Info_Proc,
 	free_mod_info:     Mod_Loader_Free_Mod_Info_Proc,
 	can_load_file:     Mod_Loader_Can_Load_File_Proc,
-	get_last_message:  Mod_Loader_Get_Last_Message_Proc,
-	free_message:      Mod_Loader_Free_Message_Proc,
 	load_mod:          Mod_Loader_Load_Mod_Proc,
 	unload_mod:        Mod_Loader_Unload_Mod_Proc,
 	get_mod_proctable: Mod_Loader_Get_Mod_ProcTable_Proc,

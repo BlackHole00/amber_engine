@@ -143,14 +143,9 @@ modmanager_register_modloader :: proc(
 			mod_loader.name,
 			" - ",
 			mod_loader.description,
-			") with warning(s):",
+			") with warning(s)",
 			sep = "",
 		)
-		for message in mod_loader->get_last_message() {
-			log.warn("\t", message)
-			mod_loader->free_message(message)
-		}
-
 		mod_manager.mod_loaders[mod_loader.identifier] = mod_loader
 
 	case .Error:
@@ -161,13 +156,9 @@ modmanager_register_modloader :: proc(
 			mod_loader.name,
 			" - ",
 			mod_loader.description,
-			"') failed initializing with error(s):",
+			"') failed initializing with error(s)",
 			sep = "",
 		)
-		for message in mod_loader->get_last_message() {
-			log.error("\t", message)
-			mod_loader->free_message(message)
-		}
 
 		log.debug("Deinitializing Mod_Loader", mod_loader.identifier)
 		mod_loader.on_deinit(&mod_loader)
@@ -329,13 +320,9 @@ modmanager_queue_load_mod :: proc(
 				info.identifier,
 				" (",
 				info.name,
-				") with warning(s):",
+				") with warning(s)",
 				sep = "",
 			)
-			for message in loader->get_last_message() {
-				log.warn("\t", message)
-				loader->free_message(message)
-			}
 		}
 	case .Error:
 		{
@@ -344,13 +331,9 @@ modmanager_queue_load_mod :: proc(
 				info.identifier,
 				" (from file: ",
 				file_path,
-				"): Could not obtain Mod_Info of mod with error(s):",
+				"): Could not obtain Mod_Info of mod with error(s)",
 				sep = "",
 			)
-			for message in loader->get_last_message() {
-				log.error("\t", message)
-				loader->free_message(message)
-			}
 
 			return .Invalid_Mod, aec.INVALID_MODID
 		}
