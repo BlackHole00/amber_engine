@@ -16,6 +16,10 @@ _ :: common
 _ :: loader
 _ :: globals
 
+test :: proc(a: ^int) {
+	a^ = a^ + 1
+}
+
 main :: proc() {
 	context = common.default_context()
 	defer common.default_context_deinit()
@@ -32,7 +36,7 @@ main :: proc() {
 		context.allocator,
 		context.temp_allocator,
 	)
-	defer loader.modmanager_free(globals.mod_manager)
+	defer loader.modmanager_free(&globals.mod_manager)
 
 	loader.librarymodloader_init(&globals.library_mod_loader)
 	defer loader.librarymodloader_free(globals.library_mod_loader)

@@ -54,19 +54,14 @@ modmanager_init :: proc(
 	mod_manager.queued_mods_to_unload = make([dynamic]Mod_Id)
 }
 
-modmanager_free :: proc(mod_manager: Mod_Manager) {
+modmanager_free :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debug("Freeing Mod_Manager")
 
 	mod_manager := mod_manager
 
-	// for mod_id, mod_info in mod_manager.mod_infos {
-	// 	modmanager_remove_mod(&mod_manager, mod_info)
-	// }
 	for loader_id, _ in mod_manager.mod_loaders {
-		modmanager_remove_modloader(&mod_manager, loader_id)
-		// log.debug("Unloading Mod_Loader ", loader.identifier, " (", loader.description, ")...")
-		// aec.modloader_deinit(&loader)
+		modmanager_remove_modloader(mod_manager, loader_id)
 	}
 
 	delete(mod_manager.mod_loaders)
@@ -237,7 +232,7 @@ modmanager_get_modloaderid :: proc(
 }
 
 modmanager_get_modloaderid_for_file :: proc(
-	mod_manager: Mod_Manager,
+	mod_manager: ^Mod_Manager,
 	file_name: string,
 ) -> Mod_Loader_Id {
 	for id, &mod_loader in mod_manager.mod_loaders {
@@ -256,7 +251,7 @@ modmanager_is_modloaderid_valid :: proc(
 	return loader_id in mod_manager.mod_loaders
 }
 
-modmanager_can_load_file :: proc(mod_manager: Mod_Manager, file_path: string) -> bool {
+modmanager_can_load_file :: proc(mod_manager: ^Mod_Manager, file_path: string) -> bool {
 	for _, &mod_loader in mod_manager.mod_loaders {
 		if aec.modloader_can_load_file(&mod_loader, file_path) {
 			return true
@@ -298,7 +293,7 @@ modmanager_queue_load_mod :: proc(
 		return .Invalid_Path, aec.INVALID_MODID
 	}
 
-	loader_id := modmanager_get_modloaderid_for_file(mod_manager^, file_path)
+	loader_id := modmanager_get_modloaderid_for_file(mod_manager, file_path)
 	if loader_id == aec.INVALID_MODLOADERID {
 		log.warn(
 			"Could not queue loading of mod ",
@@ -313,9 +308,9 @@ modmanager_queue_load_mod :: proc(
 	log.debug("Queuing loading of", file_path)
 
 	log.debug("Obtaining Mod_Info for mod", file_path)
-	loader := mod_manager.mod_loaders[loader_id]
+	loader := modmanager_get_modloader(mod_manager, loader_id)
 	mod_id := modmanager_generate_modid(mod_manager)
-	info, error := aec.modloader_generate_mod_info(&loader, file_path, mod_id)
+	info, error := aec.modloader_generate_mod_info(loader, file_path, mod_id)
 	switch error {
 	case .Success:
 		{
@@ -451,7 +446,7 @@ modmanager_queue_load_folder :: proc(
 
 	success = true
 	for file_info in file_infos {
-		if !modmanager_can_load_file(mod_manager^, file_info.fullpath) {
+		if !modmanager_can_load_file(mod_manager, file_info.fullpath) {
 			log.warn(
 				"Skipping file",
 				file_info.fullpath,
@@ -518,7 +513,7 @@ modmanager_force_load_queued_mods :: proc(mod_manager: ^Mod_Manager) -> bool {
 	return true
 }
 
-modmanager_get_mod_proctable :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> rawptr {
+modmanager_get_mod_proctable :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -> rawptr {
 	mod_info, info_ok := mod_manager.mod_infos[mod_id]
 	if !info_ok {
 		log.warn(
@@ -531,10 +526,11 @@ modmanager_get_mod_proctable :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -
 		return nil
 	}
 
-	return aec.modloader_get_mod_proctable(&mod_manager.mod_loaders[mod_info.loader], mod_info)
+	mod_loader := modmanager_get_modloader(mod_manager, mod_id)
+	return aec.modloader_get_mod_proctable(mod_loader, mod_info)
 }
 
-modmanager_get_modinfo :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> (Mod_Info, bool) {
+modmanager_get_modinfo :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -> (Mod_Info, bool) {
 	mod_info, info_ok := mod_manager.mod_infos[mod_id]
 	if !info_ok {
 		log.warn(
@@ -584,7 +580,7 @@ modmanager_is_modid_loaded :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> 
 }
 
 modmanager_get_modinfo_list :: proc(
-	mod_manager: Mod_Manager,
+	mod_manager: ^Mod_Manager,
 	allocator: mem.Allocator,
 ) -> []Mod_Info {
 	context.allocator = allocator
@@ -702,8 +698,8 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 }
 
 @(private)
-modmanager_get_modloader_ptr :: #force_inline proc(
-	mod_manager: Mod_Manager,
+modmanager_get_modloader_from_mod_loader_id :: #force_inline proc(
+	mod_manager: ^Mod_Manager,
 	mod_loader_id: Mod_Loader_Id,
 ) -> ^Mod_Loader {
 	return &mod_manager.mod_loaders[mod_loader_id]
@@ -711,10 +707,25 @@ modmanager_get_modloader_ptr :: #force_inline proc(
 
 @(private)
 modmanager_get_modloader_from_mod_id :: #force_inline proc(
-	mod_manager: Mod_Manager,
+	mod_manager: ^Mod_Manager,
 	mod_id: Mod_Id,
 ) -> ^Mod_Loader {
 	return &mod_manager.mod_loaders[mod_manager.mod_infos[mod_id].loader]
+}
+
+@(private)
+modmanager_get_modloader_from_mod_info :: #force_inline proc(
+	mod_manager: ^Mod_Manager,
+	mod_info: Mod_Info,
+) -> ^Mod_Loader {
+	return modmanager_get_modloader_from_mod_loader_id(mod_manager, mod_info.loader)
+}
+
+@(private)
+modmanager_get_modloader :: proc {
+	modmanager_get_modloader_from_mod_loader_id,
+	modmanager_get_modloader_from_mod_id,
+	modmanager_get_modloader_from_mod_info,
 }
 
 @(private)
@@ -728,7 +739,7 @@ modmanager_call_mod_init :: proc(
 	log.info("Loading mod ", info.identifier, " (", info.name, ")...", sep = "")
 
 	err = aec.modloader_load_mod(
-		&mod_manager.mod_loaders[info.loader],
+		modmanager_get_modloader(mod_manager, mod_id),
 		mod_manager.mod_infos[mod_id],
 	)
 
@@ -754,7 +765,7 @@ modmanager_call_mod_init :: proc(
 
 @(private)
 modmanager_call_mod_deinit :: proc(
-	mod_manager: Mod_Manager,
+	mod_manager: ^Mod_Manager,
 	mod_id: Mod_Id,
 ) -> (
 	err: Mod_Load_Error,
@@ -763,7 +774,7 @@ modmanager_call_mod_deinit :: proc(
 	log.info("Unloading mod ", info.identifier, " (", info.name, ")...", sep = "")
 
 	err = aec.modloader_unload_mod(
-		&mod_manager.mod_loaders[info.loader],
+		modmanager_get_modloader(mod_manager, mod_id),
 		mod_manager.mod_infos[mod_id],
 	)
 
@@ -794,7 +805,7 @@ modmanager_remove_mod_by_modinfo :: proc(
 
 	modmanager_free_mod_info(mod_manager, mod_info)
 	if mod_info.fully_loaded {
-		modmanager_call_mod_deinit(mod_manager^, mod_info.identifier)
+		modmanager_call_mod_deinit(mod_manager, mod_info.identifier)
 	}
 
 	if free_from_queued_to_unload {
@@ -813,7 +824,7 @@ modmanager_remove_mod_by_modid :: proc(
 
 	fully_loaded := mod_manager.mod_infos[mod_id].fully_loaded
 	if fully_loaded {
-		modmanager_call_mod_deinit(mod_manager^, mod_id)
+		modmanager_call_mod_deinit(mod_manager, mod_id)
 	}
 
 	modmanager_free_mod_info(mod_manager, mod_id)

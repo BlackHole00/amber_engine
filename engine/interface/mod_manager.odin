@@ -30,7 +30,7 @@ modmanager_get_modloaderid: aec.Mod_Manager_Get_ModLoaderId_Proc : proc(
 modmanager_get_modloaderid_for_file: aec.Mod_Manager_Get_ModLoaderId_For_File_Proc : proc(
 	file_path: string,
 ) -> aec.Mod_Loader_Id {
-	return loader.modmanager_get_modloaderid_for_file(globals.mod_manager, file_path)
+	return loader.modmanager_get_modloaderid_for_file(&globals.mod_manager, file_path)
 }
 
 @(private)
@@ -42,7 +42,7 @@ modmanager_is_modloaderid_valid: aec.Mod_Manager_Is_ModLoaderId_Valid : proc(
 
 @(private)
 modmanager_can_load_file: aec.Mod_Manager_Can_Load_File_Proc : proc(file_path: string) -> bool {
-	return loader.modmanager_can_load_file(globals.mod_manager, file_path)
+	return loader.modmanager_can_load_file(&globals.mod_manager, file_path)
 }
 
 @(private)
@@ -78,7 +78,7 @@ modmanager_force_load_queued_mods: aec.Mod_Manager_Force_Load_Queued_Mods_Proc :
 modmanager_get_mod_proctable: aec.Mod_Manager_Get_Mod_ProcTable_Proc : proc(
 	mod_id: aec.Mod_Id,
 ) -> rawptr {
-	return loader.modmanager_get_mod_proctable(globals.mod_manager, mod_id)
+	return loader.modmanager_get_mod_proctable(&globals.mod_manager, mod_id)
 }
 
 @(private)
@@ -88,7 +88,7 @@ modmanager_get_modinfo: aec.Mod_Manager_Get_ModInfo_Proc : proc(
 	aec.Mod_Info,
 	bool,
 ) {
-	return loader.modmanager_get_modinfo(globals.mod_manager, mod_id)
+	return loader.modmanager_get_modinfo(&globals.mod_manager, mod_id)
 }
 
 @(private)
@@ -121,6 +121,6 @@ modmanager_is_modid_loaded: aec.Mod_Manager_Is_ModId_Loaded_Proc : proc(
 modmanager_get_modinfo_list: aec.Mod_Manager_Get_ModInfo_List_Proc : proc(
 	allocator: mem.Allocator,
 ) -> []aec.Mod_Info {
-	return loader.modmanager_get_modinfo_list(globals.mod_manager, allocator)
+	return loader.modmanager_get_modinfo_list(&globals.mod_manager, allocator)
 }
 
