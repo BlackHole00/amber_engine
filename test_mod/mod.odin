@@ -1,19 +1,20 @@
 package ae_test_mod
 
-import "core:fmt"
+import "core:log"
 import ae "shared:ae_interface"
 
 init: ae.Mod_Init_Proc : proc() -> bool {
-	fmt.println("Hello mod init")
+	log.info("Hello mod init")
 
-	fmt.println("Test mod running under amber engine", ae.get_version())
-	fmt.println("Detected config: ", ae.get_config())
+	log.info("Test mod running under amber engine", ae.get_version())
+	log.info("Detected config: ", ae.get_config())
 
-	fmt.println("Other mods detected:")
+	log.info("Other mods detected:")
 	mod_infos := ae.modmanager_get_modinfo_list()
+	defer delete(mod_infos)
 	for info in mod_infos {
 		loaded_str := "(fully loaded)" if info.fully_loaded else ""
-		fmt.println(
+		log.info(
 			"\t",
 			info.identifier,
 			" - ",
@@ -30,7 +31,7 @@ init: ae.Mod_Init_Proc : proc() -> bool {
 }
 
 deinit: ae.Mod_Deinit_Proc : proc() {
-	fmt.println("Hello mod deinit")
+	log.info("Hello mod deinit")
 }
 
 main :: proc() {

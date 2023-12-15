@@ -25,6 +25,7 @@ Mod_Manager :: struct {
 	incremental_mod_id:        Mod_Id,
 	mod_loaders:               map[Mod_Loader_Id]Mod_Loader,
 	mod_infos:                 map[Mod_Id]Mod_Info,
+	// Always garanteed to contain valid Mod_Ids and ordered by dependency
 	mod_dependency_graph:      [dynamic]Mod_Id,
 	queued_mods_to_load:       [dynamic]Mod_Id,
 	queued_mods_to_unload:     [dynamic]Mod_Id,
