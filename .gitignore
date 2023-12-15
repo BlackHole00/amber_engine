@@ -2,4 +2,5 @@ build
 mods/*.dylib
 mods/*.so
 mods/*.dll
+**/*.log
 **/.DS_Store

@@ -1,2 +1,0 @@
-[INFO ] --- [2023-11-14 10:43:37] [main.odin:17:main()] Test, test, test
-[INFO ] --- [2023-11-14 10:43:37] [main.odin:22:main()] true Config{user_config = User_Config{mods_location = "build"}, user_config_source = "./amber_engine.json", version = Version{major = 0, minor = 1, revision = 0}}
