@@ -93,7 +93,7 @@ default_context_init :: proc() -> (ok: bool) {
 default_context_deinit :: proc() {
 	if DEBUG {
 		ok := true
-		log.info(
+		log.infof(
 			"Checking for memory leaks (note: the logger and the tracking allocator has not been freed yet): ",
 		)
 		for _, leak in CONTEXT_DATA.tracking_allocator.allocation_map {
@@ -101,7 +101,7 @@ default_context_deinit :: proc() {
 			ok = false
 		}
 		if ok {
-			log.info("\tNo memory Leaks.")
+			log.infof("\tNo memory Leaks.")
 		}
 
 		ok = true
@@ -110,7 +110,7 @@ default_context_deinit :: proc() {
 			log.warnf("\t%v allocation %p was freed badly", bad_free.location, bad_free.memory)
 		}
 		if ok {
-			log.info("\tNo bad frees.")
+			log.infof("\tNo bad frees.")
 		}
 
 		mem.tracking_allocator_destroy(&CONTEXT_DATA.tracking_allocator)
