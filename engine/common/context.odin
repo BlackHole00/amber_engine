@@ -64,7 +64,7 @@ default_context_init :: proc() -> (ok: bool) {
 	if os.exists(LOGGER_FILE) {
 		os.remove(LOGGER_FILE)
 	}
-	open_file_args := os.O_CREATE | os.O_WRONLY
+	open_file_args := os.O_CREATE | os.O_RDWR
 	open_mode := os.S_IRUSR | os.S_IWUSR
 	if handle, handle_ok := os.open(LOGGER_FILE, open_file_args, open_mode);
 	   handle_ok == os.ERROR_NONE {

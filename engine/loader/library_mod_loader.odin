@@ -86,13 +86,10 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	log.debug("Generating mod info of mod ", mod_id, " (", mod_path, ")...", sep = "")
 
 	if !librarymodloader_can_load_file(loader, mod_path) {
-		log.error(
-			"Could not generate Mod_Info of mod ",
+		log.errorf(
+			"Could not generate Mod_Info of mod %d (%s): The provided path is not valid or loadable by this mod loader",
 			mod_id,
-			" (",
 			mod_path,
-			"): The provided path is not valid or loadable by this mod loader",
-			sep = "",
 		)
 		return {}, .Error
 	}
@@ -100,13 +97,10 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	log.debug("Loading up library", mod_path)
 	library, library_ok := dynlib.load_library(mod_path, true)
 	if !library_ok {
-		log.error(
-			"Could not generate Mod_Info of mod ",
+		log.errorf(
+			"Could not generate Mod_Info of mod %d (%s): Could not open the library, it might be built for the wrong architecture",
 			mod_id,
-			" (",
 			mod_path,
-			"): Could not open the library, it might be built for the wrong architecture",
-			sep = "",
 		)
 		return {}, .Error
 	}
@@ -117,14 +111,10 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	); proctable_ok {
 		(^^aec.Proc_Table)(mod_proctable_address)^ = data.engine_proctable
 	} else {
-
-		log.error(
-			"Could not generate Mod_Info of mod ",
+		log.errorf(
+			"Could not generate Mod_Info of mod %d (%s): The Provided library does not contain a MOD_ENGINE_PROC_TABLE symbol name. The mod might be broken",
 			mod_id,
-			" (",
 			mod_path,
-			"): The Provided library does not contain a MOD_ENGINE_PROC_TABLE symbol name. The mod might be broken",
-			sep = "",
 		)
 
 		dynlib.unload_library(library)
@@ -151,7 +141,7 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
 
-	log.debug("Unloading library", mod_info.file_path)
+	log.debugf("Unloading library %s", mod_info.file_path)
 	dynlib.unload_library(data.library_handles[mod_info.identifier])
 
 	delete(mod_info.name)
@@ -187,7 +177,7 @@ librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
 librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
-) -> Mod_Load_Error {
+) -> Mod_Loader_Result {
 	data := (^Library_Mod_Loader_Data)(loader.user_data)
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
@@ -197,41 +187,26 @@ librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
 		aec.MOD_INIT_PROC_SYMBOL_NAME,
 	)
 	if !init_proc_ok {
-		log.error(
-			"Library mod ",
+		log.errorf(
+			"Library mod %d (%s) does not have a valid AE_INIT_PROC symbol exported. The mod might be broken",
 			mod_info.identifier,
-			" (",
 			mod_info.name,
-			") does not have a valid AE_INIT_PROC symbol exported. The mod might be broken",
-			sep = "",
 		)
-		return .Invalid_Mod
+		return .Error
 	}
 
 	if (^aec.Mod_Init_Proc)(init_proc_address)^ == nil {
-		log.error(
-			"Library mod ",
+		log.warnf(
+			"Library mod %d (%s) does not have set an init proc ",
 			mod_info.identifier,
-			" (",
 			mod_info.name,
-			") does not have set an init proc ",
-			sep = "",
 		)
-
-		return .Success
+		return .Warning
 	}
 
 	if !(^aec.Mod_Init_Proc)(init_proc_address)^() {
-		log.error(
-			"Library mod ",
-			mod_info.identifier,
-			" (",
-			mod_info.name,
-			") failed initializing ",
-			sep = "",
-		)
-
-		return .Internal_Mod_Error
+		log.errorf("Library mod %d (%s) failed initializing ", mod_info.identifier, mod_info.name)
+		return .Error
 	}
 
 	return .Success
@@ -241,7 +216,7 @@ librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
 librarymodloader_unload_mod: aec.Mod_Loader_Unload_Mod_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
-) -> Mod_Load_Error {
+) -> Mod_Loader_Result {
 	data := (^Library_Mod_Loader_Data)(loader.user_data)
 	context.allocator = data.allocator
 	context.temp_allocator = data.temp_allocator
@@ -251,28 +226,22 @@ librarymodloader_unload_mod: aec.Mod_Loader_Unload_Mod_Proc : proc(
 		aec.MOD_DEINIT_PROC_SYMBOL_NAME,
 	)
 	if !deinit_proc_ok {
-		log.error(
-			"Library mod ",
+		log.errorf(
+			"Library mod %d (%s) does not have a valid AE_DEINIT_PROC symbol exported. The mod might be broken",
 			mod_info.identifier,
-			" (",
 			mod_info.name,
-			") does not have a valid AE_DEINIT_PROC symbol exported. The mod might be broken",
-			sep = "",
 		)
-		return .Invalid_Mod
+		return .Error
 	}
 
 	if (^aec.Mod_Deinit_Proc)(deinit_proc_address)^ == nil {
-		log.error(
-			"Library mod ",
+		log.warnf(
+			"Library mod %d (%s) does not have set an deinit proc ",
 			mod_info.identifier,
-			" (",
 			mod_info.name,
-			") does not have set an deinit proc ",
-			sep = "",
 		)
 
-		return .Success
+		return .Warning
 	}
 
 	(^aec.Mod_Deinit_Proc)(deinit_proc_address)^()
@@ -294,13 +263,10 @@ librarymodloader_get_mod_proctable: aec.Mod_Loader_Get_Mod_ProcTable_Proc : proc
 		aec.MOD_PROC_TABLE_SYMBOL_NAME,
 	)
 	if !address_ok {
-		log.error(
-			"Library mod ",
+		log.errorf(
+			"Library mod %d (%s) does not have a valid AE_PROC_TABLE symbol exported. The mod might be broken",
 			mod_info.identifier,
-			" (",
 			mod_info.name,
-			") does not have a valid AE_PROC_TABLE symbol exported. The mod might be broken",
-			sep = "",
 		)
 		return nil
 	}

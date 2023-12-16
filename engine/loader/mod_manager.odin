@@ -638,19 +638,28 @@ modmanager_call_mod_init :: proc(
 	info := mod_manager.mod_infos[mod_id]
 	log.infof("Loading mod %d (%s)...", info.identifier, info.name)
 
-	err = aec.modloader_load_mod(
+	load_res := aec.modloader_load_mod(
 		modmanager_get_modloader(mod_manager, mod_id),
 		mod_manager.mod_infos[mod_id],
 	)
 
-	if err == .Success {
+	switch load_res {
+	case .Success:
 		log.infof("Mod %d (%s) successfully loaded", info.identifier, info.name)
-	} else {
-		log.warnf("Mod %d (%s) failed loading with error %v", info.identifier, info.name, err)
+		err = .Success
+	case .Warning:
+		log.warnf("Mod %d (%s) loaded with warning(s)", info.identifier, info.name)
+		err = .Success
+	case .Error:
+		log.errorf("Mod %d (%s) failed loading", info.identifier, info.name)
+		modmanager_queue_unload_mod(mod_manager, mod_id)
+		err = .Internal_Mod_Error
 	}
 
-	info.fully_loaded = true
-	mod_manager.mod_infos[mod_id] = info
+	if err != .Success {
+		info.fully_loaded = true
+		mod_manager.mod_infos[mod_id] = info
+	}
 
 	return
 }
@@ -665,15 +674,21 @@ modmanager_call_mod_deinit :: proc(
 	info := mod_manager.mod_infos[mod_id]
 	log.infof("Unloading mod %d (%s)...", info.identifier, info.name)
 
-	err = aec.modloader_unload_mod(
+	unload_res := aec.modloader_unload_mod(
 		modmanager_get_modloader(mod_manager, mod_id),
 		mod_manager.mod_infos[mod_id],
 	)
 
-	if err == .Success {
+	switch unload_res {
+	case .Success:
 		log.infof("Mod %d (%s) successfully unloaded", info.identifier, info.name)
-	} else {
-		log.warnf("Mod %d (%s) failed unloading with error %v", info.identifier, info.name, err)
+		err = .Success
+	case .Warning:
+		log.warnf("Mod %d (%s) failed unloading with warning(s)", info.identifier, info.name)
+		err = .Success
+	case .Error:
+		log.errorf("Mod %d (%s) failed unloading", info.identifier, info.name)
+		err = .Internal_Mod_Error
 	}
 
 	return

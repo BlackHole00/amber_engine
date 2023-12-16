@@ -48,10 +48,16 @@ Mod_Loader_Can_Load_File_Proc :: #type proc(loader: ^Mod_Loader, mod_path: strin
 
 // Loads a mod (usually by applying its config config files and loading its
 // shared library)
-Mod_Loader_Load_Mod_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> Mod_Load_Error
+Mod_Loader_Load_Mod_Proc :: #type proc(
+	loader: ^Mod_Loader,
+	mod_info: Mod_Info,
+) -> Mod_Loader_Result
 
 // Unloads a mod
-Mod_Loader_Unload_Mod_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> Mod_Load_Error
+Mod_Loader_Unload_Mod_Proc :: #type proc(
+	loader: ^Mod_Loader,
+	mod_info: Mod_Info,
+) -> Mod_Loader_Result
 
 // Gets the proc table of a mod. If the mod does not have a proc table, it 
 // can return null. For further documentation see 
@@ -127,7 +133,7 @@ modloader_can_load_file :: #force_inline proc(mod_loader: ^Mod_Loader, mod_path:
 modloader_load_mod :: #force_inline proc(
 	mod_loader: ^Mod_Loader,
 	mod_info: Mod_Info,
-) -> Mod_Load_Error {
+) -> Mod_Loader_Result {
 	return mod_loader->load_mod(mod_info)
 }
 
@@ -135,7 +141,7 @@ modloader_load_mod :: #force_inline proc(
 modloader_unload_mod :: #force_inline proc(
 	mod_loader: ^Mod_Loader,
 	mod_info: Mod_Info,
-) -> Mod_Load_Error {
+) -> Mod_Loader_Result {
 	return mod_loader->unload_mod(mod_info)
 }
 
