@@ -662,7 +662,7 @@ modmanager_call_mod_init :: proc(
 		err = .Internal_Mod_Error
 	}
 
-	if err != .Success {
+	if err == .Success {
 		info.fully_loaded = true
 		mod_manager.mod_infos[mod_id] = info
 	}

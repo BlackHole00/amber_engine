@@ -95,8 +95,6 @@ librarymodule_load_library :: proc(
 }
 
 librarymodule_unload_library :: proc(module: ^Library_Module) -> bool {
-	librarymodule_call_deinit(module^)
-
 	if !dynlib.unload_library(module.library_handle) {
 		log.errorf("Could not unload library handle %s", module.library_path)
 		return false
@@ -112,7 +110,8 @@ librarymodule_get_mod_proctable :: proc(module: Library_Module) -> rawptr {
 
 @(private)
 librarymodule_check_default_symbols :: proc(module: Library_Module) -> (res: Mod_Loader_Result) {
-	if (rawptr)(module.mod_export_data) == (rawptr)(module.mod_import_data) && module.mod_export_data != nil {
+	if (rawptr)(module.mod_export_data) == (rawptr)(module.mod_import_data) &&
+	   module.mod_export_data != nil {
 		log.errorf(
 			"The Library_Module %s has the symbols %s and %s pointed to the same address",
 			module.library_path,

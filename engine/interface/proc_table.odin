@@ -1,9 +1,12 @@
 package amber_engine_interface
 
+import "core:log"
 import "engine:config"
 import aec "shared:ae_common"
 
 proctable_init :: proc(table: ^aec.Proc_Table) {
+	log.debugf("Initializing Proc_Table")
+
 	table.get_version = config.get_version
 	table.get_config = get_config
 	table.get_userconfig = get_userconfig

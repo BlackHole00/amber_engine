@@ -1,5 +1,6 @@
 package amber_engine_config
 
+import "core:log"
 import "core:os"
 import "core:strings"
 import "core:encoding/json"
@@ -32,24 +33,30 @@ config_from_file :: proc(
 ) -> UserConfig_Parse_Error {
 	context.allocator = allocator
 
+	log.debugf("Trying initializing config from path \"%s\"...", config_path)
 	real_config_path, path_ok := get_real_userconfigpath(config_path, allocator)
 	if !path_ok {
+		log.errorf("Could not create config from path: The specified file does not exist")
 		return .File_Not_Found
 	}
 
 	config_content, file_open_ok := os.read_entire_file(real_config_path, allocator)
 	defer delete(config_content, allocator)
 	if !file_open_ok {
+		log.errorf("Could not create config from path: Could not open the specified file")
 		return .Read_Error
 	}
 
 	user_config: User_Config
 	parse_error := json.unmarshal(config_content, &user_config)
 	if parse_error != nil {
+		log.errorf("Could not create config from path: Could not parse the file contents")
 		return .Parse_Error
 	}
 
 	config_from_userconfig(config, user_config, real_config_path)
+
+	log.debugf("Initialized config from file")
 
 	return .Success
 }
@@ -75,11 +82,14 @@ config_from_file_or_default :: proc(
 		return true
 	}
 
+	log.warnf("Could not initialize config from file. Using default config")
 	config^ = DEFAULT_CONFIG
 	return false
 }
 
 config_free :: proc(config: Config, allocator := context.allocator) {
+	log.debugf("Freeing config...")
+
 	if path, ok := config.user_config_source.(User_Config_Source_File); ok {
 		delete(path, allocator)
 		delete(config.mods_location, allocator)
