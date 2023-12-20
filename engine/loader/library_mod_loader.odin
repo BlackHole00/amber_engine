@@ -6,6 +6,7 @@ import "core:log"
 import "core:strings"
 import "core:dynlib"
 import "engine:common"
+import "core:runtime"
 import aec "shared:ae_common"
 
 librarymodloader_init :: proc(mod_loader: ^Mod_Loader) {
@@ -17,9 +18,9 @@ librarymodloader_init :: proc(mod_loader: ^Mod_Loader) {
 librarymodloader_free :: proc(mod_loader: Mod_Loader) {}
 
 @(private)
-LIBRARYMODLOADER_ITABLE := aec.Mod_Loader_ITable {
-	on_init           = librarymodloader_on_init,
-	on_deinit         = librarymodloader_on_deinit,
+LIBRARYMODLOADER_ITABLE := aec.Mod_Loader_Proc_Table {
+	init              = librarymodloader_on_init,
+	deinit            = librarymodloader_on_deinit,
 	generate_mod_info = librarymodloader_generate_mod_info,
 	free_mod_info     = librarymodloader_free_mod_info,
 	can_load_file     = librarymodloader_can_load_file,
@@ -34,6 +35,7 @@ Library_Mod_Loader_Data :: struct {
 	temp_allocator:   mem.Allocator,
 	engine_proctable: ^aec.Proc_Table,
 	library_modules:  map[Mod_Id]Library_Module,
+	mod_context:      runtime.Context,
 }
 
 @(private)
@@ -42,17 +44,19 @@ Library_Mod_Info_Data :: struct {
 }
 
 @(private)
-librarymodloader_on_init: aec.Mod_Loader_On_Init_Proc : proc(
+librarymodloader_on_init: aec.Mod_Loader_Init_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_loader_id: Mod_Loader_Id,
 	engine_proctable: ^aec.Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
+	mod_context: runtime.Context,
 ) -> Mod_Loader_Result {
 	data := new(Library_Mod_Loader_Data, allocator)
 	data.allocator = allocator
 	data.temp_allocator = temp_allocator
 	data.engine_proctable = engine_proctable
+	data.mod_context = mod_context
 	data.library_modules = make(map[Mod_Id]Library_Module)
 
 	loader.identifier = mod_loader_id
@@ -62,7 +66,7 @@ librarymodloader_on_init: aec.Mod_Loader_On_Init_Proc : proc(
 }
 
 @(private)
-librarymodloader_on_deinit: aec.Mod_Loader_On_Deinit_Proc : proc(loader: ^Mod_Loader) {
+librarymodloader_on_deinit: aec.Mod_Loader_Deinit_Proc : proc(loader: ^Mod_Loader) {
 	data := (^Library_Mod_Loader_Data)(loader.user_data)
 	context.allocator = data.allocator
 
@@ -105,12 +109,13 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	}
 
 	library_module: Library_Module = ---
-	librarymodule_init(&library_module, info, info.file_path)
+	librarymodule_init(&library_module, info.file_path)
 	defer if result != .Success {
 		librarymodule_free(&library_module)
 	}
 
-	if librarymodule_load_library(&library_module, data.engine_proctable) != .Success {
+	if librarymodule_load_library(&library_module, data.engine_proctable, data.mod_context) !=
+	   .Success {
 		log.errorf(
 			"Could not generate Mod_Info of mod %d (%s): Could not create load the related Library_Module. The mod might be broken",
 			mod_id,

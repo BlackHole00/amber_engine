@@ -1,12 +1,12 @@
 package ae_common
 
+import "core:runtime"
+
 Mod_Id :: distinct u64
 INVALID_MODID :: (Mod_Id)(max(u64))
 
-MOD_ENGINE_PROC_TABLE_SYMBOL_NAME :: "_AE_MOD_ENGINE_PROC_TABLE"
-MOD_PROC_TABLE_SYMBOL_NAME :: "_AE_MOD_PROC_TABLE"
-MOD_INIT_PROC_SYMBOL_NAME :: "_AE_MOD_INIT_PROC"
-MOD_DEINIT_PROC_SYMBOL_NAME :: "_AE_MOD_DEINIT_PROC"
+MOD_EXPORT_DATA_SYMBOL_NAME :: "_AE_MOD_EXPORT_DATA"
+MOD_IMPORT_DATA_SYMBOL_NAME :: "_AE_MOD_IMPORT_DATA"
 
 // TODO(Vicix): Do better init and deinit procs
 Mod_Init_Proc :: #type proc() -> bool
@@ -25,5 +25,32 @@ Mod_Info :: struct {
 	fully_loaded: bool,
 	// Filled at runtime by the Mod_Manager
 	identifier:   Mod_Id,
+}
+
+Mod_Export_Proc_Table :: struct {
+	init:   Mod_Init_Proc,
+	deinit: Mod_Deinit_Proc,
+}
+
+// This struct nees to be exported by every mod with the symbol 
+// `MOD_EXPORT_DATA_SYMBOL`. The engine will only read from this structure and 
+// won't modify its contents. In other words this struct contains the data of 
+// the mod to be exported to the engine
+Mod_Export_Data :: struct {
+	using vtable:  Mod_Export_Proc_Table,
+	mod_proctable: rawptr,
+	name:          string,
+	dependences:   []string,
+	dependants:    []string,
+}
+
+// This struct need to be exported by every mod with the symbol 
+// `MOD_IMPORT_DATA_SYMBOL`. The engine will write to this structure and modify
+// its contents. Please note that those contents won't be set when the default
+// mod entry point will be called. In other words this struct contains the data
+// of the mod to be imported from the engine
+Mod_Import_Data :: struct {
+	engine_proctable: ^Proc_Table,
+	default_context:  runtime.Context,
 }
 

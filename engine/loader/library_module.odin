@@ -5,17 +5,15 @@ import "core:log"
 import "core:mem"
 import "core:os"
 import "core:strings"
+import "core:runtime"
 import aec "shared:ae_common"
 
 Library_Module :: struct {
-	allocator:                       mem.Allocator,
-	mod_info:                        Mod_Info,
-	library_path:                    string,
-	library_handle:                  dynlib.Library,
-	engine_proctable_symbol_address: ^^aec.Proc_Table,
-	mod_proctable_symbol_address:    ^rawptr,
-	init_symbol_address:             ^aec.Mod_Init_Proc,
-	deinit_symbol_address:           ^aec.Mod_Deinit_Proc,
+	allocator:       mem.Allocator,
+	library_path:    string,
+	library_handle:  dynlib.Library,
+	mod_export_data: ^aec.Mod_Export_Data,
+	mod_import_data: ^aec.Mod_Import_Data,
 }
 
 Library_Module_Result :: enum {
@@ -28,14 +26,12 @@ Library_Module_Result :: enum {
 
 librarymodule_init :: proc(
 	module: ^Library_Module,
-	mod_info: Mod_Info,
 	library_path: string,
 	allocator := context.allocator,
 ) {
 	context.allocator = allocator
 	module.allocator = allocator
 
-	module.mod_info = mod_info
 	module.library_path = strings.clone(library_path)
 }
 
@@ -50,22 +46,16 @@ librarymodule_free :: proc(module: ^Library_Module) -> bool {
 librarymodule_load_library :: proc(
 	module: ^Library_Module,
 	engine_proctable: ^aec.Proc_Table,
+	mod_context: runtime.Context,
 ) -> (
 	result: Library_Module_Result,
 ) {
-	log.debugf(
-		"Loading Library_Module %s of mod %d (%s)...",
-		module.library_path,
-		module.mod_info.identifier,
-		module.mod_info.name,
-	)
+	log.debugf("Loading Library_Module %s...", module.library_path)
 
-	if !os.exists(module.mod_info.file_path) || os.is_dir(module.mod_info.file_path) {
+	if !os.exists(module.library_path) || os.is_dir(module.library_path) {
 		log.errorf(
-			"Could not load Library_Module %s of mod %d (%s): The provided path is not valid",
+			"Could not load Library_Module %s: The provided path is not valid",
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
 		)
 		return .Path_Error
 	}
@@ -73,10 +63,8 @@ librarymodule_load_library :: proc(
 	library, did_load := dynlib.load_library(module.library_path, true)
 	if !did_load {
 		log.errorf(
-			"Could not load Library_Module %s of mod %d (%s): Could not load the dynamic library",
+			"Could not load Library_Module %s: Could not load the dynamic library",
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
 		)
 		return .Loading_Error
 	}
@@ -87,17 +75,17 @@ librarymodule_load_library :: proc(
 
 	if !librarymodule_search_default_symbols(module) {
 		log.errorf(
-			"Could not load Library_Module %s of mod %d (%s): The mod does not export the required symbols",
+			"Could not load Library_Module %s: The mod does not export the required symbols",
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
 		)
 		return .Missing_Symbol_Error
 	}
 
-	librarymodule_check_default_symbols(module^)
+	if librarymodule_check_default_symbols(module^) == .Error {
+		return .Internal_Mod_Error
+	}
 
-	module.engine_proctable_symbol_address^ = engine_proctable
+	librarymodule_set_mod_imported_data(module^, engine_proctable, mod_context)
 
 	if !librarymodule_call_init(module^) {
 		return .Internal_Mod_Error
@@ -110,12 +98,7 @@ librarymodule_unload_library :: proc(module: ^Library_Module) -> bool {
 	librarymodule_call_deinit(module^)
 
 	if !dynlib.unload_library(module.library_handle) {
-		log.errorf(
-			"Could not unload library handle %s of mod %d (%s)",
-			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
-		)
+		log.errorf("Could not unload library handle %s", module.library_path)
 		return false
 	}
 	module.library_handle = nil
@@ -124,100 +107,64 @@ librarymodule_unload_library :: proc(module: ^Library_Module) -> bool {
 }
 
 librarymodule_get_mod_proctable :: proc(module: Library_Module) -> rawptr {
-	return module.mod_proctable_symbol_address^
+	return module.mod_export_data.mod_proctable
 }
 
 @(private)
-librarymodule_check_default_symbols :: proc(module: Library_Module) -> (ok: bool) {
-	ok = true
-
-	if module.init_symbol_address^ == nil {
-		log.warnf(
-			"The Library_Module %s of mod %d (%s) did not provide a valid Mod_Init_Proc procedure",
+librarymodule_check_default_symbols :: proc(module: Library_Module) -> (res: Mod_Loader_Result) {
+	if (rawptr)(module.mod_export_data) == (rawptr)(module.mod_import_data) && module.mod_export_data != nil {
+		log.errorf(
+			"The Library_Module %s has the symbols %s and %s pointed to the same address",
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
+			aec.MOD_IMPORT_DATA_SYMBOL_NAME,
+			aec.MOD_EXPORT_DATA_SYMBOL_NAME,
 		)
-		ok = false
+		return .Error
 	}
 
-	if module.deinit_symbol_address^ == nil {
+	if module.mod_export_data.init == nil {
 		log.warnf(
-			"The Library_Module %s of mod %d (%s) did not provide a valid Mod_Deinit_Proc procedure",
+			"The Library_Module %s did not provide a valid Mod_Init_Proc procedure",
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
 		)
-		ok = false
+		return .Warning
 	}
 
-	return
+	if module.mod_export_data.deinit == nil {
+		log.warnf(
+			"The Library_Module %s did not provide a valid Mod_Deinit_Proc procedure",
+			module.library_path,
+		)
+		return .Warning
+	}
+
+	return .Success
 }
 
 @(private)
-librarymodule_call_deinit :: proc(module: Library_Module) {
-	if module.deinit_symbol_address^ == nil {
-		log.infof(
-			"Skipping Mod_Deinit_Proc of Library_Module %s of mod %d (%s)...",
-			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
-		)
-
-		return
-	}
-
-	log.debugf(
-		"Calling Mod_Deinit_Proc of Library_Module %s of mod %d (%s)...",
-		module.library_path,
-		module.mod_info.identifier,
-		module.mod_info.name,
-	)
-
-	(module.deinit_symbol_address^)()
-
-	log.debugf(
-		"Successfully called Mod_Deinit_Proc of Library_Module %s of mod %d (%s)",
-		module.library_path,
-		module.mod_info.identifier,
-		module.mod_info.name,
-	)
+librarymodule_set_mod_imported_data :: proc(
+	module: Library_Module,
+	engine_proctable: ^aec.Proc_Table,
+	mod_context: runtime.Context,
+) {
+	module.mod_import_data.engine_proctable = engine_proctable
+	module.mod_import_data.default_context = mod_context
 }
 
 @(private)
 librarymodule_call_init :: proc(module: Library_Module) -> bool {
-	if module.init_symbol_address^ == nil {
-		log.infof(
-			"Skipping Mod_Init_Proc of Library_Module %s of mod %d (%s)...",
-			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
-		)
+	if module.mod_export_data.init == nil {
+		log.infof("Skipping Mod_Init_Proc of Library_Module %s...", module.library_path)
 
 		return true
 	}
 
-	log.debugf(
-		"Calling Mod_Init_Proc of Library_Module %s of mod %d (%s)...",
-		module.library_path,
-		module.mod_info.identifier,
-		module.mod_info.name,
-	)
+	log.debugf("Calling Mod_Init_Proc of Library_Module %s...", module.library_path)
 
-	if (module.init_symbol_address^)() {
-		log.debugf(
-			"Successfully called Mod_Init_Proc of Library_Module %s of mod %d (%s)",
-			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
-		)
+	if module.mod_export_data.init() {
+		log.debugf("Successfully called Mod_Init_Proc of Library_Module %s", module.library_path)
 	} else {
-		log.errorf(
-			"Could not load Library_Module %s of mod %d (%s): Mod_Init_Proc failed",
-			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
-		)
+		log.errorf("Could not load Library_Module %s: Mod_Init_Proc failed", module.library_path)
 		return false
 	}
 
@@ -225,35 +172,38 @@ librarymodule_call_init :: proc(module: Library_Module) -> bool {
 }
 
 @(private)
+librarymodule_call_deinit :: proc(module: Library_Module) {
+	if module.mod_export_data.deinit == nil {
+		log.infof("Skipping Mod_Deinit_Proc of Library_Module %s...", module.library_path)
+
+		return
+	}
+
+	log.debugf("Calling Mod_Deinit_Proc of Library_Module %s...", module.library_path)
+
+	module.mod_export_data.deinit()
+
+	log.debugf("Successfully called Mod_Deinit_Proc of Library_Module %s", module.library_path)
+}
+
+@(private)
 librarymodule_search_default_symbols :: proc(module: ^Library_Module) -> (ok: bool) {
 	ok = true
 
-	if symbol_address := librarymodule_search_symbol(
+	if import_symbol_address := librarymodule_search_symbol(
 		module^,
-		aec.MOD_ENGINE_PROC_TABLE_SYMBOL_NAME,
-	); symbol_address != nil {
-		module.engine_proctable_symbol_address = (^^aec.Proc_Table)(symbol_address)
+		aec.MOD_IMPORT_DATA_SYMBOL_NAME,
+	); import_symbol_address != nil {
+		module.mod_import_data = (^aec.Mod_Import_Data)(import_symbol_address)
 	} else {
 		ok = false
 	}
 
-	if symbol_address := librarymodule_search_symbol(module^, aec.MOD_INIT_PROC_SYMBOL_NAME);
-	   symbol_address != nil {
-		module.init_symbol_address = (^aec.Mod_Init_Proc)(symbol_address)
-	} else {
-		ok = false
-	}
-
-	if symbol_address := librarymodule_search_symbol(module^, aec.MOD_DEINIT_PROC_SYMBOL_NAME);
-	   symbol_address != nil {
-		module.deinit_symbol_address = (^aec.Mod_Deinit_Proc)(symbol_address)
-	} else {
-		ok = false
-	}
-
-	if symbol_address := librarymodule_search_symbol(module^, aec.MOD_PROC_TABLE_SYMBOL_NAME);
-	   symbol_address != nil {
-		module.mod_proctable_symbol_address = (^rawptr)(symbol_address)
+	if export_symbol_address := librarymodule_search_symbol(
+		module^,
+		aec.MOD_EXPORT_DATA_SYMBOL_NAME,
+	); export_symbol_address != nil {
+		module.mod_export_data = (^aec.Mod_Export_Data)(export_symbol_address)
 	} else {
 		ok = false
 	}
@@ -268,11 +218,9 @@ librarymodule_search_symbol :: proc(module: Library_Module, symbol: string) -> r
 		return symbol_address
 	} else {
 		log.errorf(
-			"Could not find exported symbol %s in Library_Module %s of mod %d (%s). The mod could be corrupted",
+			"Could not find exported symbol %s in Library_Module %s",
 			symbol,
 			module.library_path,
-			module.mod_info.identifier,
-			module.mod_info.name,
 		)
 	}
 

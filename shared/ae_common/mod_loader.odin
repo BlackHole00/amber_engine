@@ -1,6 +1,7 @@
 package ae_common
 
 import "core:mem"
+import "core:runtime"
 
 DEFAULT_ARCHIVE_EXTENSIONS :: [?]string{"zip", "aemod"}
 DEFAULT_LIBRARY_EXTENSIONS :: [?]string{"dll", "so", "dylib"}
@@ -17,17 +18,18 @@ INVALID_MODLOADERID :: (Mod_Loader_Id)(max(u64))
 // Called on the Mod_Loader initialization (i.e. on the registration in the mod 
 // manager). The allocators provided by the function should be the one used by
 // the mod loader
-Mod_Loader_On_Init_Proc :: #type proc(
+Mod_Loader_Init_Proc :: #type proc(
 	loader: ^Mod_Loader,
 	mod_loader_id: Mod_Loader_Id,
 	engine_proctable: ^Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
+	mod_context: runtime.Context,
 ) -> Mod_Loader_Result
 
 // Called on the Mod_Loader deinitialization (i.e on the removal from the mod
 // manager or at the application shutdown)
-Mod_Loader_On_Deinit_Proc :: #type proc(loader: ^Mod_Loader)
+Mod_Loader_Deinit_Proc :: #type proc(loader: ^Mod_Loader)
 
 // Generates the `Mod_Info` of a mod (identified by its path). The identifier of
 // the returned Mod_Info must be equal to the provided Mod_Id
@@ -64,11 +66,11 @@ Mod_Loader_Unload_Mod_Proc :: #type proc(
 // `ae_interface:Mod_Proc_Table`
 Mod_Loader_Get_Mod_ProcTable_Proc :: #type proc(loader: ^Mod_Loader, mod_info: Mod_Info) -> rawptr
 
-// Mod_Loader_ITable is a interface table that every Mod Loader must implement.
+// Mod_Loader_Proc_Table is a table that every Mod Loader must implement.
 // Its procedures will be called by the mod manager when opportune
-Mod_Loader_ITable :: struct {
-	on_init:           Mod_Loader_On_Init_Proc,
-	on_deinit:         Mod_Loader_On_Deinit_Proc,
+Mod_Loader_Proc_Table :: struct {
+	init:              Mod_Loader_Init_Proc,
+	deinit:            Mod_Loader_Deinit_Proc,
 	generate_mod_info: Mod_Loader_Generate_Mod_Info_Proc,
 	free_mod_info:     Mod_Loader_Free_Mod_Info_Proc,
 	can_load_file:     Mod_Loader_Can_Load_File_Proc,
@@ -81,7 +83,7 @@ Mod_Loader_ITable :: struct {
 // @memory: a mod loader should always use the allocators provided in its
 //          on_init callback
 Mod_Loader :: struct {
-	using itable: ^Mod_Loader_ITable,
+	using itable: ^Mod_Loader_Proc_Table,
 	// Must be unique between mod loaders
 	name:         string,
 	// A general description of the mod loader
@@ -98,13 +100,16 @@ modloader_init :: #force_inline proc(
 	engine_proctable: ^Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
+	mod_context: runtime.Context,
 ) -> Mod_Loader_Result {
-	return mod_loader->on_init(mod_loader_id, engine_proctable, allocator, temp_allocator)
+	return(
+		mod_loader->init(mod_loader_id, engine_proctable, allocator, temp_allocator, mod_context) \
+	)
 }
 
 // See `Mod_Loader_On_Deinit_Proc`
 modloader_deinit :: #force_inline proc(mod_loader: ^Mod_Loader) {
-	mod_loader->on_deinit()
+	mod_loader->deinit()
 }
 
 // See `Mod_Loader_Generate_Mod_Info_Proc`

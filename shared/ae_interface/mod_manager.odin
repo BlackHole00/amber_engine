@@ -32,10 +32,10 @@ Mod_Manager :: doc.Singleton_Symbol
 //                 default mod loaders are garanteed to be safe.
 Mod_Loader :: aec.Mod_Loader
 
-// Mod_Loader_ITable is a interface table that every Mod Loader must implement.
+// Mod_Loader_Proc_Table is a table that every Mod Loader must implement.
 // For implementation details, see `ae_common:Mod_Loader_Itable`, 
 // `ae_common\mod_loader.odin` and related procedures
-Mod_Loader_ITable :: aec.Mod_Loader_ITable
+Mod_Loader_Proc_Table :: aec.Mod_Loader_Proc_Table
 
 // The Mod_Loader_Id is a unique identifier for a mod loader. It will be 
 // assigned upon mod loader registration and will remain the same even after the
@@ -72,38 +72,38 @@ INVALID_MODLOADERID :: aec.INVALID_MODLOADERID
 // Registers a mod loader into the mod manager. Mod loader initialization will
 // follow. Returns INVALID_MODLOADERID upon error(s)
 modmanager_register_modloader :: #force_inline proc(mod_loader: Mod_Loader) -> Mod_Loader_Id {
-	return AE_ENGINE_PROC_TABLE.modmanager_register_modloader(mod_loader)
+	return get_engine_proctable().modmanager_register_modloader(mod_loader)
 }
 
 // Removes a mod loader from the mod manager. Returns whether or not the removal
 // has been successfull
 modmanager_remove_modloader :: #force_inline proc(modloader_identifier: Mod_Loader_Id) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_remove_modloader(modloader_identifier)
+	return get_engine_proctable().modmanager_remove_modloader(modloader_identifier)
 }
 
 // Returns the Mod_Loader_Id of the mod loader identified by the name. Returns 
 // INVALID_MODLOADERID if the mod loader does not exists
 modmanager_get_modloaderid :: #force_inline proc(loader_name: string) -> aec.Mod_Loader_Id {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modloaderid(loader_name)
+	return get_engine_proctable().modmanager_get_modloaderid(loader_name)
 }
 
 // Returns the Mod_Loader_Id of the mod loader that can load a specific mod
 // (identified by its path). Returns INVALID_MODLOADERID if none of the registed
 // mod loaders can load the specified mod
 modmanager_get_modloaderid_for_file :: #force_inline proc(file_path: string) -> aec.Mod_Loader_Id {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modloaderid_for_file(file_path)
+	return get_engine_proctable().modmanager_get_modloaderid_for_file(file_path)
 }
 
 // Returns whether or not a Mod_Loader_Id is valid, i.e. its associated mod 
 // loader does exists and it is still registered
 modmanager_is_modloaderid_valid :: #force_inline proc(loader_id: aec.Mod_Loader_Id) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_is_modloaderid_valid(loader_id)
+	return get_engine_proctable().modmanager_is_modloaderid_valid(loader_id)
 }
 
 // Returns whether or not a file can be loaded by any of the mod loaders 
 // registered in the mod manager
 modmanager_can_load_file :: #force_inline proc(file_path: string) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_can_load_file(file_path)
+	return get_engine_proctable().modmanager_can_load_file(file_path)
 }
 
 // Queues a mod (identified by its path) to be loaded. Loading may or may not 
@@ -116,7 +116,7 @@ modmanager_queue_load_mod :: #force_inline proc(
 	aec.Mod_Load_Error,
 	aec.Mod_Id,
 ) {
-	return AE_ENGINE_PROC_TABLE.modmanager_queue_load_mod(mod_path)
+	return get_engine_proctable().modmanager_queue_load_mod(mod_path)
 }
 
 // Queues the loading of a mod folder. Loading may or may not  be instantaneous, 
@@ -126,27 +126,27 @@ modmanager_queue_load_mod :: #force_inline proc(
 // is not recursive (i.e. does not follow subfolders and symbolic links)
 // Returns whether or not a mod failed to load.
 modmanager_queue_load_folder :: #force_inline proc(folder_path: string) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_queue_load_folder(folder_path)
+	return get_engine_proctable().modmanager_queue_load_folder(folder_path)
 }
 
 // Queues a mod to be unloaded. Unloading may or may not be instantaneous, 
 // depending on the mod manager implementation. To force a mod to unload please 
 // use `modmanager_force_load_queued_mods`.
 modmanager_queue_unload_mod :: #force_inline proc(mod_id: aec.Mod_Id) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_queue_unload_mod(mod_id)
+	return get_engine_proctable().modmanager_queue_unload_mod(mod_id)
 }
 
 // Normally mod loading and unloading will be applied by the mod manager in the
 // most opportune moment. This function forces the mod manager to load the 
 // queued loads and unloads of mods
 modmanager_force_load_queued_mods :: #force_inline proc() -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_force_load_queued_mods()
+	return get_engine_proctable().modmanager_force_load_queued_mods()
 }
 
 // Returns a mod proctable. Returns nil if the mod does not exist or if the mod
 // does not have a proctable
 modmanager_get_mod_proctable :: #force_inline proc(mod_id: aec.Mod_Id) -> rawptr {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_mod_proctable(mod_id)
+	return get_engine_proctable().modmanager_get_mod_proctable(mod_id)
 }
 
 // Returns the info of a mod
@@ -156,36 +156,36 @@ modmanager_get_modinfo :: #force_inline proc(
 	info: aec.Mod_Info,
 	found: bool,
 ) {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modinfo(mod_id)
+	return get_engine_proctable().modmanager_get_modinfo(mod_id)
 }
 
 // Returns the id of the mod identified by a specified name. Returns 
 // INVALID_MODID if the specified name does not exists
 modmanager_get_modid_from_name :: #force_inline proc(mod_name: string) -> aec.Mod_Id {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modid_from_name(mod_name)
+	return get_engine_proctable().modmanager_get_modid_from_name(mod_name)
 }
 
 // Returns the id of the mod identified by a its files path. Returns 
 // INVALID_MODID if the specified name does not exists
 modmanager_get_modid_from_path :: #force_inline proc(mod_path: string) -> aec.Mod_Id {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modid_from_path(mod_path)
+	return get_engine_proctable().modmanager_get_modid_from_path(mod_path)
 }
 
 // Returns whether or not a Mod_Id is valid. Please note that a Mod_Id is valid
 // even when the loading of a related mod is still queued up
 modmanager_is_modid_valid :: #force_inline proc(mod_id: aec.Mod_Id) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_is_modid_valid(mod_id)
+	return get_engine_proctable().modmanager_is_modid_valid(mod_id)
 }
 
 // Returns whether or not the mod related to a Mod_Id has been full loaded (i.e.
 // its loading is not queued up). Returns false if the mod does not exist
 modmanager_is_modid_loaded :: #force_inline proc(mod_id: aec.Mod_Id) -> bool {
-	return AE_ENGINE_PROC_TABLE.modmanager_is_modid_loaded(mod_id)
+	return get_engine_proctable().modmanager_is_modid_loaded(mod_id)
 }
 
 // Returns the list of Mod_Infos of all the currently registered mods
 // @memory the list must be freed by the caller
 modmanager_get_modinfo_list :: #force_inline proc(allocator := context.allocator) -> []Mod_Info {
-	return AE_ENGINE_PROC_TABLE.modmanager_get_modinfo_list(allocator)
+	return get_engine_proctable().modmanager_get_modinfo_list(allocator)
 }
 

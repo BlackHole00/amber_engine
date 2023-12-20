@@ -1,45 +1,47 @@
 package ae_interface
 
+import "core:log"
+import "core:mem"
+import "core:runtime"
 import aec "shared:ae_common"
 
 Mod_Init_Proc :: aec.Mod_Init_Proc
 Mod_Deinit_Proc :: aec.Mod_Deinit_Proc
-
-// This global variable must be present in all mods. It will be set by a mod
-// loader before any engine-interfacing-code is runned. Please note that in the
-// mod entrypoint this global is not garanteed to be valid.
-// All the interface procedures call procedures inside this table
-@(private)
-@(require)
-@(export)
-@(link_name = aec.MOD_ENGINE_PROC_TABLE_SYMBOL_NAME)
-AE_ENGINE_PROC_TABLE: ^aec.Proc_Table = nil
+Mod_Descriptor :: aec.Mod_Export_Data
 
 @(private)
 @(require)
 @(export)
-@(link_name = aec.MOD_PROC_TABLE_SYMBOL_NAME)
-AE_MOD_PROC_TABLE: rawptr = nil
+@(linkage = "strong")
+@(link_name = aec.MOD_EXPORT_DATA_SYMBOL_NAME)
+AE_MOD_EXPORT_DATA: aec.Mod_Export_Data = {}
 
 @(private)
 @(require)
 @(export)
-@(link_name = aec.MOD_INIT_PROC_SYMBOL_NAME)
-AE_MOD_INIT_PROC: aec.Mod_Init_Proc = nil
+@(linkage = "strong")
+@(link_name = aec.MOD_IMPORT_DATA_SYMBOL_NAME)
+AE_MOD_IMPORT_DATA: aec.Mod_Import_Data = {}
 
-@(private)
-@(require)
-@(export)
-@(link_name = aec.MOD_DEINIT_PROC_SYMBOL_NAME)
-AE_MOD_DEINIT_PROC: aec.Mod_Deinit_Proc = nil
+set_mod_descriptor :: #force_inline proc(data: Mod_Descriptor) {
+	log.info((rawptr)(&AE_MOD_IMPORT_DATA), (rawptr)(&AE_MOD_EXPORT_DATA))
 
-set_mod_export_symbols :: proc(
-	init_proc: aec.Mod_Init_Proc,
-	deinit_proc: aec.Mod_Deinit_Proc,
-	mod_proctable: rawptr = nil,
-) {
-	AE_MOD_INIT_PROC = init_proc
-	AE_MOD_DEINIT_PROC = deinit_proc
-	AE_MOD_PROC_TABLE = mod_proctable
+	AE_MOD_EXPORT_DATA = data
+}
+
+get_engine_proctable :: #force_inline proc() -> ^aec.Proc_Table {
+	return AE_MOD_IMPORT_DATA.engine_proctable
+}
+
+default_context :: #force_inline proc() -> runtime.Context {
+	return AE_MOD_IMPORT_DATA.default_context
+}
+
+default_allocator :: #force_inline proc() -> mem.Allocator {
+	return default_context().allocator
+}
+
+default_temp_allocator :: #force_inline proc() -> mem.Allocator {
+	return default_context().temp_allocator
 }
 

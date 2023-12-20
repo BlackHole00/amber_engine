@@ -5,6 +5,7 @@ import "core:os"
 import "core:log"
 import "core:mem"
 import "core:slice"
+import "core:runtime"
 import ts "core:container/topological_sort"
 
 Mod_Id :: aec.Mod_Id
@@ -20,6 +21,7 @@ Mod_Manager :: struct {
 	allocator:                 mem.Allocator,
 	loader_allocator:          mem.Allocator,
 	loader_temp_allocator:     mem.Allocator,
+	mod_context:               runtime.Context,
 	engine_proctable:          ^aec.Proc_Table,
 	// used to generate mod_loader ids
 	incremental_mod_loader_id: Mod_Loader_Id,
@@ -38,6 +40,7 @@ modmanager_init :: proc(
 	engine_proctable: ^aec.Proc_Table,
 	loader_allocator: mem.Allocator,
 	loader_temp_allocator: mem.Allocator,
+	mod_context: runtime.Context,
 	allocator := context.allocator,
 ) {
 	context.allocator = allocator
@@ -45,6 +48,7 @@ modmanager_init :: proc(
 	mod_manager.loader_allocator = loader_allocator
 	mod_manager.loader_temp_allocator = loader_temp_allocator
 	mod_manager.engine_proctable = engine_proctable
+	mod_manager.mod_context = mod_context
 
 	log.debug("Initializing Mod_Manager")
 
@@ -99,6 +103,7 @@ modmanager_register_modloader :: proc(
 		mod_manager.engine_proctable,
 		mod_manager.loader_allocator,
 		mod_manager.loader_temp_allocator,
+		mod_manager.mod_context,
 	)
 
 	if init_result != .Error && mod_loader.identifier != mod_loader_id {

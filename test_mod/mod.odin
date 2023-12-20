@@ -30,6 +30,14 @@ deinit: ae.Mod_Deinit_Proc : proc() {
 }
 
 main :: proc() {
-	ae.set_mod_export_symbols(init, deinit)
+	ae.set_mod_descriptor(
+		ae.Mod_Descriptor{
+			name = "Test_Mod",
+			dependences = {},
+			dependants = {},
+			init = init,
+			deinit = deinit,
+		},
+	)
 }
 
