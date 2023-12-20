@@ -15,6 +15,7 @@ Mod_Loader_Result :: aec.Mod_Loader_Result
 Mod_Load_Error :: aec.Mod_Load_Error
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
+// TODO(Vicix): This implementation is garbage. Change it!
 Mod_Manager :: struct {
 	allocator:                 mem.Allocator,
 	loader_allocator:          mem.Allocator,
