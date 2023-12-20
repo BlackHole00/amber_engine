@@ -108,6 +108,18 @@ librarymodule_get_mod_proctable :: proc(module: Library_Module) -> rawptr {
 	return module.mod_export_data.mod_proctable
 }
 
+librarymodule_get_mod_name :: proc(module: Library_Module) -> string {
+	return module.mod_export_data.name
+}
+
+librarymodule_get_mod_dependences :: proc(module: Library_Module) -> []string {
+	return module.mod_export_data.dependences
+}
+
+librarymodule_get_mod_dependants :: proc(module: Library_Module) -> []string {
+	return module.mod_export_data.dependants
+}
+
 @(private)
 librarymodule_check_default_symbols :: proc(module: Library_Module) -> (res: Mod_Loader_Result) {
 	if (rawptr)(module.mod_export_data) == (rawptr)(module.mod_import_data) &&

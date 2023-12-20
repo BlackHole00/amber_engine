@@ -3,6 +3,14 @@ package ae_test_mod
 import "core:log"
 import ae "shared:ae_interface"
 
+MOD_DESCRIPTOR :: ae.Mod_Descriptor {
+	name = "Test_Mod",
+	dependences = []string{},
+	dependants = []string{},
+	init = init,
+	deinit = deinit,
+}
+
 init: ae.Mod_Init_Proc : proc() -> bool {
 	log.infof("Hello mod init")
 
@@ -30,14 +38,6 @@ deinit: ae.Mod_Deinit_Proc : proc() {
 }
 
 main :: proc() {
-	ae.set_mod_descriptor(
-		ae.Mod_Descriptor{
-			name = "Test_Mod",
-			dependences = {},
-			dependants = {},
-			init = init,
-			deinit = deinit,
-		},
-	)
+	ae.set_mod_descriptor(MOD_DESCRIPTOR)
 }
 

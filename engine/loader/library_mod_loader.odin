@@ -98,18 +98,8 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 		return {}, .Error
 	}
 
-	info = Mod_Info {
-		identifier = mod_id,
-		name       = common.remove_file_extension(mod_path),
-		file_path  = strings.clone(mod_path),
-	}
-	defer if result != .Success {
-		delete(info.name)
-		delete(info.file_path)
-	}
-
 	library_module: Library_Module = ---
-	librarymodule_init(&library_module, info.file_path)
+	librarymodule_init(&library_module, mod_path)
 	defer if result != .Success {
 		librarymodule_free(&library_module)
 	}
@@ -126,6 +116,14 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 		return
 	}
 	data.library_modules[mod_id] = library_module
+
+	info = Mod_Info {
+		identifier   = mod_id,
+		name         = librarymodule_get_mod_name(library_module),
+		dependencies = librarymodule_get_mod_dependences(library_module),
+		dependants   = librarymodule_get_mod_dependants(library_module),
+		file_path    = strings.clone(mod_path),
+	}
 
 	return
 }
