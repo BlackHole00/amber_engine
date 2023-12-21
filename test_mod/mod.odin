@@ -4,9 +4,9 @@ import "core:log"
 import ae "shared:ae_interface"
 
 MOD_DESCRIPTOR :: ae.Mod_Descriptor {
-	name = "Test_Mod",
+	name = "Test_Mod_2",
 	version = ae.Version{0, 1, 0},
-	dependences = []string{},
+	dependencies = []string{},
 	dependants = []string{},
 	init = init,
 	deinit = deinit,
@@ -22,13 +22,7 @@ init: ae.Mod_Init_Proc : proc() -> bool {
 	mod_infos := ae.modmanager_get_modinfo_list()
 	defer delete(mod_infos)
 	for info in mod_infos {
-		log.infof(
-			"\t%d - %s (%s) %s",
-			info.identifier,
-			info.name,
-			info.file_path,
-			"(fully loaded)" if info.fully_loaded else "",
-		)
+		log.infof("\t%d - %s (%s) - %v", info.identifier, info.name, info.file_path, info.status)
 	}
 
 	return true

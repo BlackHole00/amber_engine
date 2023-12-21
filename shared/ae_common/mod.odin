@@ -18,6 +18,7 @@ Mod_Status :: enum {
 	Loaded,
 	Queued_For_Unloading,
 	Unloading,
+	Errored,
 	Unknown = 0,
 }
 
@@ -29,8 +30,8 @@ Mod_Info :: struct {
 	dependencies: []string,
 	dependants:   []string,
 	loader:       Mod_Loader_Id,
-	fully_loaded: bool,
 	identifier:   Mod_Id,
+	status:       Mod_Status,
 }
 
 Mod_Export_Proc_Table :: struct {
@@ -48,7 +49,7 @@ Mod_Export_Data :: struct {
 	// Must be unique
 	name:          string,
 	version:       Version,
-	dependences:   []string,
+	dependencies:  []string,
 	dependants:    []string,
 }
 

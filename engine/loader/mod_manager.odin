@@ -14,6 +14,7 @@ Mod_Loader_Id :: aec.Mod_Loader_Id
 Mod_Loader :: aec.Mod_Loader
 Mod_Loader_Result :: aec.Mod_Loader_Result
 Mod_Load_Error :: aec.Mod_Load_Error
+Mod_Status :: aec.Mod_Status
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
 // TODO(Vicix): This implementation is garbage. Change it!
@@ -62,8 +63,6 @@ modmanager_init :: proc(
 modmanager_free :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debug("Freeing Mod_Manager")
-
-	mod_manager := mod_manager
 
 	for loader_id, _ in mod_manager.mod_loaders {
 		modmanager_remove_modloader(mod_manager, loader_id)
@@ -306,9 +305,12 @@ modmanager_queue_load_mod :: proc(
 			info.name,
 		)
 
+		info.status = .Errored
+		modmanager_remove_mod(mod_manager, info)
 		return .Duplicate_Mod, aec.INVALID_MODID
 	}
 
+	info.status = .Queued_For_Loading
 	mod_manager.mod_infos[info.identifier] = info
 	append(&mod_manager.queued_mods_to_load, info.identifier)
 
@@ -404,11 +406,13 @@ modmanager_queue_unload_mod :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -
 	if idx, found := slice.linear_search(mod_manager.queued_mods_to_load[:], mod_id); found {
 		unordered_remove(&mod_manager.queued_mods_to_load, idx)
 		append(&mod_manager.queued_mods_to_unload, mod_id)
+		(&mod_manager.mod_infos[mod_id]).status = .Queued_For_Unloading
 		return true
 	}
 
 	if _, found := slice.linear_search(mod_manager.loaded_mods[:], mod_id); found {
 		append(&mod_manager.queued_mods_to_unload, mod_id)
+		(&mod_manager.mod_infos[mod_id]).status = .Queued_For_Unloading
 		return true
 	}
 
@@ -481,13 +485,13 @@ modmanager_is_modid_valid :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> b
 	return mod_id in mod_manager.mod_infos
 }
 
-modmanager_is_modid_loaded :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> bool {
+modmanager_get_mod_status :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> Mod_Status {
 	info, info_ok := mod_manager.mod_infos[mod_id]
 	if !info_ok {
-		return false
+		return .Unknown
 	}
 
-	return info.fully_loaded
+	return info.status
 }
 
 modmanager_get_modinfo_list :: proc(
@@ -542,7 +546,7 @@ modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 	for mod_id in mod_manager.loaded_mods {
 		mod_info := mod_manager.mod_infos[mod_id]
 
-		if mod_info.fully_loaded {
+		if mod_info.status == .Loaded {
 			continue
 		}
 
@@ -642,8 +646,9 @@ modmanager_call_mod_init :: proc(
 ) -> (
 	err: Mod_Load_Error,
 ) {
-	info := mod_manager.mod_infos[mod_id]
+	info := &mod_manager.mod_infos[mod_id]
 	log.infof("Loading mod %d (%s)...", info.identifier, info.name)
+	info.status = .Loading
 
 	load_res := aec.modloader_load_mod(
 		modmanager_get_modloader(mod_manager, mod_id),
@@ -664,8 +669,9 @@ modmanager_call_mod_init :: proc(
 	}
 
 	if err == .Success {
-		info.fully_loaded = true
-		mod_manager.mod_infos[mod_id] = info
+		info.status = .Loaded
+	} else {
+		info.status = .Errored
 	}
 
 	return
@@ -678,13 +684,11 @@ modmanager_call_mod_deinit :: proc(
 ) -> (
 	err: Mod_Load_Error,
 ) {
-	info := mod_manager.mod_infos[mod_id]
+	info := &mod_manager.mod_infos[mod_id]
 	log.infof("Unloading mod %d (%s)...", info.identifier, info.name)
+	info.status = .Unloading
 
-	unload_res := aec.modloader_unload_mod(
-		modmanager_get_modloader(mod_manager, mod_id),
-		mod_manager.mod_infos[mod_id],
-	)
+	unload_res := aec.modloader_unload_mod(modmanager_get_modloader(mod_manager, mod_id), info^)
 
 	switch unload_res {
 	case .Success:
@@ -709,10 +713,11 @@ modmanager_remove_mod_by_modinfo :: proc(
 ) {
 	context.allocator = mod_manager.allocator
 
-	modmanager_free_mod_info(mod_manager, mod_info)
-	if mod_info.fully_loaded {
+	if mod_info.status == .Loaded || mod_info.status == .Queued_For_Unloading {
 		modmanager_call_mod_deinit(mod_manager, mod_info.identifier)
 	}
+
+	modmanager_free_mod_info(mod_manager, mod_info)
 
 	if free_from_queued_to_unload {
 		idx, _ := slice.linear_search(mod_manager.queued_mods_to_unload[:], mod_info.identifier)
@@ -728,8 +733,8 @@ modmanager_remove_mod_by_modid :: proc(
 ) {
 	context.allocator = mod_manager.allocator
 
-	fully_loaded := mod_manager.mod_infos[mod_id].fully_loaded
-	if fully_loaded {
+	status := mod_manager.mod_infos[mod_id].status
+	if status == .Loaded || status == .Queued_For_Unloading {
 		modmanager_call_mod_deinit(mod_manager, mod_id)
 	}
 

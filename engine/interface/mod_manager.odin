@@ -111,10 +111,10 @@ modmanager_is_modid_valid: aec.Mod_Manager_Is_ModId_Valid_Proc : proc(mod_id: ae
 }
 
 @(private)
-modmanager_is_modid_loaded: aec.Mod_Manager_Is_ModId_Loaded_Proc : proc(
+modmanager_get_mod_status: aec.Mod_Manager_Get_Mod_Status : proc(
 	mod_id: aec.Mod_Id,
-) -> bool {
-	return loader.modmanager_is_modid_loaded(globals.mod_manager, mod_id)
+) -> aec.Mod_Status {
+	return loader.modmanager_get_mod_status(globals.mod_manager, mod_id)
 }
 
 @(private)

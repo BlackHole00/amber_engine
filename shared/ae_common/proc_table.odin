@@ -24,7 +24,7 @@ Proc_Table :: struct {
 	modmanager_get_modid_from_name:      Mod_Manager_Get_ModId_From_Name_Proc,
 	modmanager_get_modid_from_path:      Mod_Manager_Get_ModId_From_Path_Proc,
 	modmanager_is_modid_valid:           Mod_Manager_Is_ModId_Valid_Proc,
-	modmanager_is_modid_loaded:          Mod_Manager_Is_ModId_Loaded_Proc,
+	modmanager_get_mod_status:           Mod_Manager_Get_Mod_Status,
 	modmanager_get_modinfo_list:         Mod_Manager_Get_ModInfo_List_Proc,
 }
 

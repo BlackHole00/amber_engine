@@ -26,7 +26,7 @@ proctable_init :: proc(table: ^aec.Proc_Table) {
 	table.modmanager_get_modid_from_name = modmanager_get_modid_from_name
 	table.modmanager_get_modid_from_path = modmanager_get_modid_from_path
 	table.modmanager_is_modid_valid = modmanager_is_modid_valid
-	table.modmanager_is_modid_loaded = modmanager_is_modid_loaded
+	table.modmanager_get_mod_status = modmanager_get_mod_status
 	table.modmanager_get_modinfo_list = modmanager_get_modinfo_list
 }
 

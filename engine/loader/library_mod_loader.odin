@@ -3,6 +3,7 @@ package amber_engine_loader
 import "core:mem"
 import "core:os"
 import "core:log"
+import "core:slice"
 import "core:strings"
 import "core:dynlib"
 import "engine:common"
@@ -117,12 +118,22 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	}
 	data.library_modules[mod_id] = library_module
 
+	name := strings.clone(librarymodule_get_mod_name(library_module))
+	dependencies := slice.clone(librarymodule_get_mod_dependencies(library_module))
+	for &dependency in dependencies {
+		dependency = strings.clone(dependency)
+	}
+	dependants := slice.clone(librarymodule_get_mod_dependants(library_module))
+	for &dependant in dependants {
+		dependant = strings.clone(dependant)
+	}
+
 	info = Mod_Info {
 		identifier   = mod_id,
-		name         = librarymodule_get_mod_name(library_module),
+		name         = name,
 		version      = librarymodule_get_version(library_module),
-		dependencies = librarymodule_get_mod_dependences(library_module),
-		dependants   = librarymodule_get_mod_dependants(library_module),
+		dependencies = dependencies,
+		dependants   = dependants,
 		file_path    = strings.clone(mod_path),
 	}
 
@@ -144,6 +155,14 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 
 	delete(mod_info.name)
 	delete(mod_info.file_path)
+	for dependency in mod_info.dependencies {
+		delete(dependency)
+	}
+	delete(mod_info.dependencies)
+	for dependant in mod_info.dependants {
+		delete(dependant)
+	}
+	delete(mod_info.dependants)
 }
 
 @(private)

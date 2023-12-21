@@ -36,7 +36,7 @@ Mod_Manager_Get_ModId_From_Name_Proc :: #type proc(mod_name: string) -> Mod_Id
 Mod_Manager_Get_ModId_From_Path_Proc :: #type proc(mod_path: string) -> Mod_Id
 
 Mod_Manager_Is_ModId_Valid_Proc :: #type proc(mod_id: Mod_Id) -> bool
-Mod_Manager_Is_ModId_Loaded_Proc :: #type proc(mod_id: Mod_Id) -> bool
+Mod_Manager_Get_Mod_Status :: #type proc(mod_id: Mod_Id) -> Mod_Status
 
 Mod_Manager_Get_ModInfo_List_Proc :: #type proc(allocator: mem.Allocator) -> []Mod_Info
 

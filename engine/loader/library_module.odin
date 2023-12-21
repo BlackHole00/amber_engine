@@ -87,17 +87,15 @@ librarymodule_load_library :: proc(
 
 	librarymodule_set_mod_imported_data(module^, engine_proctable, mod_context)
 
-	if !librarymodule_call_init(module^) {
-		return .Internal_Mod_Error
-	}
-
 	return .Success
 }
 
 librarymodule_unload_library :: proc(module: ^Library_Module) -> bool {
-	if !dynlib.unload_library(module.library_handle) {
-		log.errorf("Could not unload library handle %s", module.library_path)
-		return false
+	if module.library_handle != nil {
+		if !dynlib.unload_library(module.library_handle) {
+			log.errorf("Could not unload library handle %s", module.library_path)
+			return false
+		}
 	}
 	module.library_handle = nil
 
@@ -116,8 +114,8 @@ librarymodule_get_version :: proc(module: Library_Module) -> aec.Version {
 	return module.mod_export_data.version
 }
 
-librarymodule_get_mod_dependences :: proc(module: Library_Module) -> []string {
-	return module.mod_export_data.dependences
+librarymodule_get_mod_dependencies :: proc(module: Library_Module) -> []string {
+	return module.mod_export_data.dependencies
 }
 
 librarymodule_get_mod_dependants :: proc(module: Library_Module) -> []string {
@@ -156,17 +154,6 @@ librarymodule_check_default_symbols :: proc(module: Library_Module) -> (res: Mod
 	return .Success
 }
 
-@(private)
-librarymodule_set_mod_imported_data :: proc(
-	module: Library_Module,
-	engine_proctable: ^aec.Proc_Table,
-	mod_context: runtime.Context,
-) {
-	module.mod_import_data.engine_proctable = engine_proctable
-	module.mod_import_data.default_context = mod_context
-}
-
-@(private)
 librarymodule_call_init :: proc(module: Library_Module) -> bool {
 	if module.mod_export_data.init == nil {
 		log.infof("Skipping Mod_Init_Proc of Library_Module %s...", module.library_path)
@@ -186,7 +173,6 @@ librarymodule_call_init :: proc(module: Library_Module) -> bool {
 	return true
 }
 
-@(private)
 librarymodule_call_deinit :: proc(module: Library_Module) {
 	if module.mod_export_data.deinit == nil {
 		log.infof("Skipping Mod_Deinit_Proc of Library_Module %s...", module.library_path)
@@ -201,6 +187,15 @@ librarymodule_call_deinit :: proc(module: Library_Module) {
 	log.debugf("Successfully called Mod_Deinit_Proc of Library_Module %s", module.library_path)
 }
 
+@(private)
+librarymodule_set_mod_imported_data :: proc(
+	module: Library_Module,
+	engine_proctable: ^aec.Proc_Table,
+	mod_context: runtime.Context,
+) {
+	module.mod_import_data.engine_proctable = engine_proctable
+	module.mod_import_data.default_context = mod_context
+}
 @(private)
 librarymodule_search_default_symbols :: proc(module: ^Library_Module) -> (ok: bool) {
 	ok = true
