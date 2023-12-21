@@ -18,6 +18,7 @@ INVALID_MODLOADERID :: (Mod_Loader_Id)(max(u64))
 // Called on the Mod_Loader initialization (i.e. on the registration in the mod 
 // manager). The allocators provided by the function should be the one used by
 // the mod loader
+// TODO(Vicix): The mod_context should be obtained using a Context_Manager or something
 Mod_Loader_Init_Proc :: #type proc(
 	loader: ^Mod_Loader,
 	mod_loader_id: Mod_Loader_Id,

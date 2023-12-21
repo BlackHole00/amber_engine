@@ -5,6 +5,7 @@ import ae "shared:ae_interface"
 
 MOD_DESCRIPTOR :: ae.Mod_Descriptor {
 	name = "Test_Mod",
+	version = ae.Version{0, 1, 0},
 	dependences = []string{},
 	dependants = []string{},
 	init = init,

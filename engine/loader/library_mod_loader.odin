@@ -120,6 +120,7 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	info = Mod_Info {
 		identifier   = mod_id,
 		name         = librarymodule_get_mod_name(library_module),
+		version      = librarymodule_get_version(library_module),
 		dependencies = librarymodule_get_mod_dependences(library_module),
 		dependants   = librarymodule_get_mod_dependants(library_module),
 		file_path    = strings.clone(mod_path),

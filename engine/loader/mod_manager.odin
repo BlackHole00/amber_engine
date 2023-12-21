@@ -592,9 +592,10 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 		mod_info := mod_manager.mod_infos[mod_id]
 
 		log.debugf(
-			"\t%d - %s (dependences: %v), (dependants: %v)",
+			"\t%d - %s (%v) (dependences: %v), (dependants: %v)",
 			mod_id,
 			mod_info.name,
+			mod_info.version,
 			mod_info.dependencies,
 			mod_info.dependants,
 		)

@@ -112,6 +112,10 @@ librarymodule_get_mod_name :: proc(module: Library_Module) -> string {
 	return module.mod_export_data.name
 }
 
+librarymodule_get_version :: proc(module: Library_Module) -> aec.Version {
+	return module.mod_export_data.version
+}
+
 librarymodule_get_mod_dependences :: proc(module: Library_Module) -> []string {
 	return module.mod_export_data.dependences
 }
