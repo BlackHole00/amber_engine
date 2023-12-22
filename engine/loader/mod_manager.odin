@@ -4,7 +4,6 @@ import aec "shared:ae_common"
 import "core:os"
 import "core:log"
 import "core:mem"
-import "core:slice"
 import "core:runtime"
 import ts "core:container/topological_sort"
 
@@ -17,7 +16,6 @@ Mod_Load_Error :: aec.Mod_Load_Error
 Mod_Status :: aec.Mod_Status
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
-// TODO(Vicix): This implementation is garbage. Change it!
 Mod_Manager :: struct {
 	allocator:                 mem.Allocator,
 	loader_allocator:          mem.Allocator,
@@ -29,10 +27,7 @@ Mod_Manager :: struct {
 	incremental_mod_id:        Mod_Id,
 	mod_loaders:               map[Mod_Loader_Id]Mod_Loader,
 	mod_infos:                 map[Mod_Id]Mod_Info,
-	// Always garanteed to contain valid Mod_Ids and ordered by dependency
-	loaded_mods:               [dynamic]Mod_Id,
-	queued_mods_to_load:       [dynamic]Mod_Id,
-	queued_mods_to_unload:     [dynamic]Mod_Id,
+	mod_order:                 [dynamic]Mod_Id,
 }
 
 
@@ -55,9 +50,7 @@ modmanager_init :: proc(
 
 	mod_manager.mod_loaders = make(map[Mod_Loader_Id]Mod_Loader)
 	mod_manager.mod_infos = make(map[Mod_Id]Mod_Info)
-	mod_manager.loaded_mods = make([dynamic]Mod_Id)
-	mod_manager.queued_mods_to_load = make([dynamic]Mod_Id)
-	mod_manager.queued_mods_to_unload = make([dynamic]Mod_Id)
+	mod_manager.mod_order = make([dynamic]Mod_Id)
 }
 
 modmanager_free :: proc(mod_manager: ^Mod_Manager) {
@@ -70,9 +63,7 @@ modmanager_free :: proc(mod_manager: ^Mod_Manager) {
 
 	delete(mod_manager.mod_loaders)
 	delete(mod_manager.mod_infos)
-	delete(mod_manager.loaded_mods)
-	delete(mod_manager.queued_mods_to_load)
-	delete(mod_manager.queued_mods_to_unload)
+	delete(mod_manager.mod_order)
 }
 
 modmanager_register_modloader :: proc(
@@ -312,7 +303,6 @@ modmanager_queue_load_mod :: proc(
 
 	info.status = .Queued_For_Loading
 	mod_manager.mod_infos[info.identifier] = info
-	append(&mod_manager.queued_mods_to_load, info.identifier)
 
 	log.infof("Successfully queued loading of mod %d (%s)", info.identifier, info.name)
 
@@ -397,30 +387,22 @@ modmanager_queue_unload_mod :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -
 		log.infof("Successfully queued unloading of mod %d", mod_id)
 	}
 
-	if _, found := slice.linear_search(mod_manager.queued_mods_to_unload[:], mod_id); found {
+	mod_info, mod_info_ok := &mod_manager.mod_infos[mod_id]
+	if !mod_info_ok {
+		log.errorf(
+			"Could not queue unloading of mod %d: The provided Mod_Id does not seem to be valid",
+			mod_id,
+		)
+		return false
+	}
+
+	if mod_info.status == .Queued_For_Unloading || mod_info.status == .Unloading {
 		log.warnf("The mod %d is already sheduled for unloading", mod_id)
-
 		return true
 	}
 
-	if idx, found := slice.linear_search(mod_manager.queued_mods_to_load[:], mod_id); found {
-		unordered_remove(&mod_manager.queued_mods_to_load, idx)
-		append(&mod_manager.queued_mods_to_unload, mod_id)
-		(&mod_manager.mod_infos[mod_id]).status = .Queued_For_Unloading
-		return true
-	}
-
-	if _, found := slice.linear_search(mod_manager.loaded_mods[:], mod_id); found {
-		append(&mod_manager.queued_mods_to_unload, mod_id)
-		(&mod_manager.mod_infos[mod_id]).status = .Queued_For_Unloading
-		return true
-	}
-
-	log.warnf(
-		"Could not queue unloading of mod %d: The provided Mod_Id does not seem to be valid",
-		mod_id,
-	)
-	return false
+	mod_info.status = .Queued_For_Unloading
+	return true
 }
 
 modmanager_force_load_queued_mods :: proc(mod_manager: ^Mod_Manager) -> bool {
@@ -437,6 +419,15 @@ modmanager_get_mod_proctable :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) 
 	if !info_ok {
 		log.warnf(
 			"Could not obtain proc table of mod %d: The provided Mod_Id does not seem to be valid",
+			mod_id,
+		)
+
+		return nil
+	}
+
+	if mod_info.status != .Loaded {
+		log.warnf(
+			"Could not obtain proc table of mod %d: The provided mod is not fully loaded",
 			mod_id,
 		)
 
@@ -528,22 +519,20 @@ modmanager_generate_modid :: proc(mod_manager: ^Mod_Manager) -> Mod_Id {
 modmanager_remove_queued_mods_to_unload :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 
-	for mod_id in mod_manager.queued_mods_to_unload {
-		modmanager_remove_mod(mod_manager, mod_id)
+	for _, mod_info in mod_manager.mod_infos {
+		if mod_info.status == .Queued_For_Unloading {
+			modmanager_remove_mod(mod_manager, mod_info)
+		}
 	}
-
-	resize(&mod_manager.queued_mods_to_unload, 0)
 }
 
 @(private)
 modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 
-	resize(&mod_manager.queued_mods_to_load, 0)
-
 	reload_loaded_mods_order(mod_manager)
 
-	for mod_id in mod_manager.loaded_mods {
+	for mod_id in mod_manager.mod_order {
 		mod_info := mod_manager.mod_infos[mod_id]
 
 		if mod_info.status == .Loaded {
@@ -559,7 +548,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
 	log.debugf("Creating dependency graph")
 
-	delete(mod_manager.loaded_mods)
+	delete(mod_manager.mod_order)
 
 	sorter: ts.Sorter(Mod_Id) = ---
 	ts.init(&sorter)
@@ -605,7 +594,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 		)
 	}
 
-	mod_manager.loaded_mods = sorted
+	mod_manager.mod_order = sorted
 }
 
 @(private)
@@ -706,11 +695,7 @@ modmanager_call_mod_deinit :: proc(
 }
 
 @(private)
-modmanager_remove_mod_by_modinfo :: proc(
-	mod_manager: ^Mod_Manager,
-	mod_info: Mod_Info,
-	free_from_queued_to_unload := false,
-) {
+modmanager_remove_mod_by_modinfo :: proc(mod_manager: ^Mod_Manager, mod_info: Mod_Info) {
 	context.allocator = mod_manager.allocator
 
 	if mod_info.status == .Loaded || mod_info.status == .Queued_For_Unloading {
@@ -718,11 +703,6 @@ modmanager_remove_mod_by_modinfo :: proc(
 	}
 
 	modmanager_free_mod_info(mod_manager, mod_info)
-
-	if free_from_queued_to_unload {
-		idx, _ := slice.linear_search(mod_manager.queued_mods_to_unload[:], mod_info.identifier)
-		unordered_remove(&mod_manager.queued_mods_to_unload, idx)
-	}
 }
 
 @(private)
@@ -739,11 +719,6 @@ modmanager_remove_mod_by_modid :: proc(
 	}
 
 	modmanager_free_mod_info(mod_manager, mod_id)
-
-	if free_from_queued_to_unload {
-		idx, _ := slice.linear_search(mod_manager.queued_mods_to_unload[:], mod_id)
-		unordered_remove(&mod_manager.queued_mods_to_unload, idx)
-	}
 }
 
 @(private)
