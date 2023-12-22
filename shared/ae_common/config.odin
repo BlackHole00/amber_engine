@@ -9,8 +9,9 @@ Version :: struct {
 }
 
 User_Config :: struct {
-	mods_location: string,
-	logging_level: log.Level,
+	mods_location:    string,
+	scheduler_treads: int,
+	logging_level:    log.Level,
 }
 
 User_Config_Source_File :: string

@@ -6,8 +6,8 @@ import ae "shared:ae_interface"
 MOD_DESCRIPTOR :: ae.Mod_Descriptor {
 	name = "Test_Mod_2",
 	version = ae.Version{0, 1, 0},
-	dependencies = []string{},
-	dependants = []string{},
+	dependencies = []string{"asd", "asd", "asd", "asd", "asd"},
+	dependants = []string{"asd", "asd", "asd", "asd", "asd", "asd"},
 	init = init,
 	deinit = deinit,
 }

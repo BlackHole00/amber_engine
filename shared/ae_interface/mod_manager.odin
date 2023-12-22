@@ -66,6 +66,8 @@ Mod_Load_Error :: aec.Mod_Load_Error
 // interpretation) call the first mod's public procedures.
 Mod_ProcTable :: doc.Documentation_Symbol
 
+Mod_Status :: aec.Mod_Status
+
 INVALID_MODID :: aec.INVALID_MODID
 INVALID_MODLOADERID :: aec.INVALID_MODLOADERID
 
@@ -179,8 +181,8 @@ modmanager_is_modid_valid :: #force_inline proc(mod_id: aec.Mod_Id) -> bool {
 
 // Returns whether or not the mod related to a Mod_Id has been full loaded (i.e.
 // its loading is not queued up). Returns false if the mod does not exist
-modmanager_is_modid_loaded :: #force_inline proc(mod_id: aec.Mod_Id) -> bool {
-	return get_engine_proctable().modmanager_is_modid_loaded(mod_id)
+modmanager_get_mod_status :: #force_inline proc(mod_id: aec.Mod_Id) -> Mod_Status {
+	return get_engine_proctable().modmanager_get_mod_status(mod_id)
 }
 
 // Returns the list of Mod_Infos of all the currently registered mods
