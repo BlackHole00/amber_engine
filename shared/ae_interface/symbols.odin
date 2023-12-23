@@ -1,6 +1,5 @@
 package ae_interface
 
-import "core:log"
 import "core:mem"
 import "core:runtime"
 import aec "shared:ae_common"
@@ -24,8 +23,6 @@ AE_MOD_EXPORT_DATA: aec.Mod_Export_Data = {}
 AE_MOD_IMPORT_DATA: aec.Mod_Import_Data = {}
 
 set_mod_descriptor :: #force_inline proc(data: Mod_Descriptor) {
-	log.info((rawptr)(&AE_MOD_IMPORT_DATA), (rawptr)(&AE_MOD_EXPORT_DATA))
-
 	AE_MOD_EXPORT_DATA = data
 }
 

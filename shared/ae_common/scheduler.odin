@@ -7,12 +7,7 @@ Thread_Id :: distinct int
 Scheduler_Add_Task_Proc :: #type proc(task_descriptor: Task_Descriptor) -> Task_Id
 Scheduler_Remove_Task_Proc :: #type proc(task_id: Task_Id) -> bool
 
-Scheduler_Wait_For_Proc :: #type proc(
-	task_ids: ..Task_Id,
-	max_ms_wait_time := -1,
-) -> (
-	did_wait: bool
-)
+Scheduler_Wait_For_Proc :: #type proc(task_ids: ..Task_Id, max_ms_wait_time := -1) -> bool
 Scheduler_Yield_Proc :: #type proc(yield_ptr: rawptr)
 Scheduler_Get_Thread_Id_Proc :: #type proc() -> Thread_Id
 

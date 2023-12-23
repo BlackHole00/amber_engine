@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug",
+            "name": "Unix - Debug Engine",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/amber_engine.out",
@@ -12,7 +12,44 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb",
-            // "preLaunchTask": "build"
+            "preLaunchTask": "unix-build-engine"
+        },
+        {
+            "name": "Unix - Debug Test_Mod",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/amber_engine.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "unix-build-testmod"
+        },
+        {
+            "name": "Windows - Debug Engine",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/amber_engine.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "preLaunchTask": "windows-build-engine"
+        },
+        {
+            "name": "Windows - Debug Test_Mod",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/amber_engine.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "preLaunchTask": "windows-build-testmod"
         }
     ]
 }

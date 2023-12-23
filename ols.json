@@ -3,11 +3,11 @@
     "collections": [
         {
             "name": "core",
-            "path": "/Users/vicix/Applications/Odin/core"
+            "path": "C:/Program Files/odin/core"
         }, 
         {
             "name": "vendor",
-            "path": "/Users/vicix/Applications/Odin/vendor"
+            "path": "C:/Program_Files/odin/vendor"
         },
         {
             "name": "shared",

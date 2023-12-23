@@ -4,3 +4,4 @@ mods/*.so
 mods/*.dll
 **/*.log
 **/.DS_Store
+ols.json

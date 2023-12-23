@@ -1,8 +1,8 @@
 package amber_engine_common
 
+import "core:log"
 import "core:mem"
 import "core:mem/virtual"
-import "core:log"
 import "core:os"
 import "core:runtime"
 
@@ -26,9 +26,9 @@ CONTEXT_DATA: struct {
 	allocator:                 mem.Allocator,
 	temp_arena:                virtual.Arena,
 	temp_allocator:            mem.Allocator,
-	log_file:                  os.Handle,
 	console_logger:            log.Logger,
 	file_logger:               log.Logger,
+	is_file_logger_valid:      bool,
 	logger:                    log.Logger,
 	default_context:           runtime.Context,
 	is_context_initialized:    bool,
@@ -64,18 +64,26 @@ default_context_init :: proc() -> (ok: bool) {
 	if os.exists(LOGGER_FILE) {
 		os.remove(LOGGER_FILE)
 	}
+
 	open_file_args := os.O_CREATE | os.O_RDWR
-	open_mode := os.S_IRUSR | os.S_IWUSR
+	when ODIN_OS != .Windows {
+		open_mode := os.S_IRUSR | os.S_IWUSR
+	} else {
+		open_mode := 0
+	}
+
 	if handle, handle_ok := os.open(LOGGER_FILE, open_file_args, open_mode);
 	   handle_ok == os.ERROR_NONE {
-		CONTEXT_DATA.log_file = handle
+		CONTEXT_DATA.is_file_logger_valid = true
 		CONTEXT_DATA.file_logger = log.create_file_logger(handle, LOWEST_LOG_LEVEL)
 		CONTEXT_DATA.logger = log.create_multi_logger(
 			CONTEXT_DATA.console_logger,
 			CONTEXT_DATA.file_logger,
 		)
+
+		os.close(handle)
 	} else {
-		CONTEXT_DATA.log_file = os.INVALID_HANDLE
+		CONTEXT_DATA.is_file_logger_valid = false
 		CONTEXT_DATA.logger = log.create_multi_logger(CONTEXT_DATA.console_logger)
 	}
 
@@ -91,6 +99,10 @@ default_context_init :: proc() -> (ok: bool) {
 }
 
 default_context_deinit :: proc() {
+	if !CONTEXT_DATA.is_context_initialized {
+		return
+	}
+
 	if DEBUG {
 		ok := true
 		log.infof(
@@ -118,8 +130,12 @@ default_context_deinit :: proc() {
 	context.allocator = CONTEXT_DATA.allocator
 
 	log.destroy_console_logger(CONTEXT_DATA.console_logger)
-	if CONTEXT_DATA.log_file != os.INVALID_HANDLE {
-		log.destroy_file_logger(&CONTEXT_DATA.logger)
+	if CONTEXT_DATA.is_file_logger_valid {
+		// TODO(Vicix): Fix This line. Under windows the internal file handle of 
+		// the logger seems to be invalid?
+		when ODIN_OS != .Windows {
+			log.destroy_file_logger(&CONTEXT_DATA.logger)
+		}
 	}
 	log.destroy_multi_logger(&CONTEXT_DATA.logger)
 

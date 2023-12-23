@@ -3,11 +3,13 @@ package ae_test_mod
 import "core:log"
 import ae "shared:ae_interface"
 
-MOD_DESCRIPTOR :: ae.Mod_Descriptor {
+// Make sure this descriptor is static and NOT CONSTANT
+// TODO(Vicix): Explain why constant does not work
+MOD_DESCRIPTOR := ae.Mod_Descriptor {
 	name = "Test_Mod_2",
 	version = ae.Version{0, 1, 0},
-	dependencies = []string{"asd", "asd", "asd", "asd", "asd"},
-	dependants = []string{"asd", "asd", "asd", "asd", "asd", "asd"},
+	dependencies = []string{"abc", "cde"},
+	dependants = []string{"edc", "cba"},
 	init = init,
 	deinit = deinit,
 }

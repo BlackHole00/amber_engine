@@ -1,26 +1,8 @@
 package amber_engine_common
 
-import "core:os"
 import "core:strings"
 
-file_extension_from_handle :: proc(
-	handle: os.Handle,
-	allocator := context.allocator,
-) -> (
-	string,
-	bool,
-) {
-	context.allocator = allocator
-
-	full_path, path_ok := os.absolute_path_from_handle(handle)
-	if path_ok != os.ERROR_NONE {
-		return "", false
-	}
-
-	return file_extension_from_filename(full_path)
-}
-
-file_extension_from_filename :: proc(
+file_extension :: proc(
 	file_name: string,
 	allocator := context.allocator,
 ) -> (
@@ -60,10 +42,5 @@ remove_file_extension :: proc(file_name: string, allocator := context.allocator)
 	defer delete(splits)
 
 	return strings.clone(splits[len(splits) - 1])
-}
-
-file_extension :: proc {
-	file_extension_from_handle,
-	file_extension_from_filename,
 }
 

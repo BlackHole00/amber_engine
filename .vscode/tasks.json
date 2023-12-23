@@ -2,9 +2,24 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
+            "label": "unix-build-engine",
             "type": "shell",
             "command": "${workspaceFolder}/build_engine.sh"
+        },
+        {
+            "label": "unix-build-testmod",
+            "type": "shell",
+            "command": "${workspaceFolder}/build_mod.sh"
+        },
+        {
+            "label": "windows-build-engine",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build_engine.bat"
+        },
+        {
+            "label": "windows-build-testmod",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build_mod.bat"
         }
     ]
 }
