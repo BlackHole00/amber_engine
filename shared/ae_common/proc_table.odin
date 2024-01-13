@@ -29,7 +29,7 @@ Proc_Table :: struct {
 	scheduler_add_task:                  Scheduler_Add_Task_Proc,
 	scheduler_remove_task:               Scheduler_Remove_Task_Proc,
 	scheduler_wait_for:                  Scheduler_Wait_For_Proc,
-	scheduler_yield:                     Scheduler_Yield_Proc,
+	scheduler_sleep:                     Scheduler_Sleep_Proc,
 	scheduler_get_threadid:              Scheduler_Get_Thread_Id_Proc,
 	scheduler_get_taskinfo:              Scheduler_Get_Task_Info_Proc,
 	scheduler_get_taskinfo_list:         Scheduler_Get_Task_Info_Proc,

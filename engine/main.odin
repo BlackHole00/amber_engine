@@ -1,12 +1,13 @@
 package main
 
 import "core:log"
+import "engine:common"
+import "engine:config"
+import "engine:globals"
+import "engine:interface"
+import "engine:loader"
+import "engine:scheduler"
 import aec "shared:ae_common"
-import "interface"
-import "config"
-import "common"
-import "loader"
-import "globals"
 
 _ :: log
 _ :: aec
@@ -15,6 +16,7 @@ _ :: config
 _ :: common
 _ :: loader
 _ :: globals
+_ :: scheduler
 
 main :: proc() {
 	context = common.default_context()
@@ -34,6 +36,14 @@ main :: proc() {
 	log.infof("Using config %#v", globals.config)
 
 	context.logger.lowest_level = globals.config.logging_level
+
+	schdlr: scheduler.Scheduler = ---
+	scheduler.scheduler_init(
+		&schdlr,
+		scheduler.Scheduler_Descriptor{thread_count = globals.config.scheduler_threads},
+	)
+	scheduler.scheduler_start(&schdlr)
+	defer scheduler.scheduler_free(schdlr)
 
 	loader.modmanager_init(
 		&globals.mod_manager,
