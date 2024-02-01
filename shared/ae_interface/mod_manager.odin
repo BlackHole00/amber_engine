@@ -16,7 +16,7 @@ import doc "shared:ae_common/doc_utils"
 Mod_Manager :: doc.Singleton_Symbol
 
 // A Mod Loader is a loader for a specific class of file types. In order to be
-// valid, a Mod_Loader must implement the `Mod_Loader_ITable`.
+// valid, a Mod_Loader must implement the `Mod_Loader_Proc_Table`.
 // By default, the engine contains mod loaders for the following types:
 //   - directories + zip, aemod files: can define behavoiur by configuration
 //                                     files and, optionally by code (via shared
@@ -27,9 +27,7 @@ Mod_Manager :: doc.Singleton_Symbol
 // TODO(Vicix): Expand The documentation of common mod loaders
 // @lifetime: valid from registration until removal from the mod manager. Please
 //            note that the user cannot directly interact with the mod loader.
-// @thread_safety: Every mod loader must be designed to be thread safe. However
-//                 note that this is mod loader implementation dependant. The
-//                 default mod loaders are garanteed to be safe.
+// @thread_safety: Every mod loader must be designed to be thread safe. 
 Mod_Loader :: aec.Mod_Loader
 
 // Mod_Loader_Proc_Table is a table that every Mod Loader must implement.

@@ -3,11 +3,11 @@
     "collections": [
         {
             "name": "core",
-            "path": "C:/Program Files/odin/core"
+            "path": "~/Applications/Odin/core"
         }, 
         {
             "name": "vendor",
-            "path": "C:/Program_Files/odin/vendor"
+            "path": "~/Applications/Odin/vendor"
         },
         {
             "name": "shared",
@@ -21,6 +21,9 @@
     "enable_document_symbols": true,
     "enable_semantic_tokens": false,
     "enable_hover": true,
+    "enable_fake_methods": true,
+    "enable-inlay_hints": true,
     "enable_snippets": true,
-    "format": true
+    "enable_procedure_snippet": true,
+    "verbose": true,
 }

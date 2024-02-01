@@ -6,7 +6,7 @@ import aec "shared:ae_common"
 
 Mod_Init_Proc :: aec.Mod_Init_Proc
 Mod_Deinit_Proc :: aec.Mod_Deinit_Proc
-Mod_Descriptor :: aec.Mod_Export_Data
+Mod_Descriptor :: aec.Mod_Descriptor
 
 @(private)
 @(require)

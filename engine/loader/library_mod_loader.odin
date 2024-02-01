@@ -1,19 +1,20 @@
 package amber_engine_loader
 
+import "core:dynlib"
+import "core:log"
 import "core:mem"
 import "core:os"
-import "core:log"
+import "core:runtime"
 import "core:slice"
 import "core:strings"
-import "core:dynlib"
 import "engine:common"
-import "core:runtime"
 import aec "shared:ae_common"
 
 librarymodloader_init :: proc(mod_loader: ^Mod_Loader) {
 	mod_loader.itable = &LIBRARYMODLOADER_ITABLE
 	mod_loader.name = aec.DEFAULT_LIBRARY_MODLOADER_NAME
 	mod_loader.description = "Loads .dll, .so and .dylib files as shared libraries"
+	mod_loader.version = aec.Version{0, 0, 1}
 }
 
 librarymodloader_free :: proc(mod_loader: Mod_Loader) {}
@@ -121,11 +122,19 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	name := strings.clone(librarymodule_get_mod_name(library_module))
 	dependencies := slice.clone(librarymodule_get_mod_dependencies(library_module))
 	for &dependency in dependencies {
-		dependency = strings.clone(dependency)
+		dependency.name = strings.clone(dependency.name)
+		if version, version_ok := dependency.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		   version_ok {
+			dependency.version = slice.clone(version)
+		}
 	}
 	dependants := slice.clone(librarymodule_get_mod_dependants(library_module))
 	for &dependant in dependants {
-		dependant = strings.clone(dependant)
+		dependant.name = strings.clone(dependant.name)
+		if version, version_ok := dependant.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		   version_ok {
+			dependant.version = slice.clone(version)
+		}
 	}
 
 	info = Mod_Info {
@@ -156,11 +165,19 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 	delete(mod_info.name)
 	delete(mod_info.file_path)
 	for dependency in mod_info.dependencies {
-		delete(dependency)
+		delete(dependency.name)
+		if version, version_ok := dependency.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		   version_ok {
+			delete(version)
+		}
 	}
 	delete(mod_info.dependencies)
 	for dependant in mod_info.dependants {
-		delete(dependant)
+		delete(dependant.name)
+		if version, version_ok := dependant.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		   version_ok {
+			delete(version)
+		}
 	}
 	delete(mod_info.dependants)
 }

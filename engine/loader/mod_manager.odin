@@ -1,11 +1,11 @@
 package amber_engine_loader
 
-import aec "shared:ae_common"
-import "core:os"
+import ts "core:container/topological_sort"
 import "core:log"
 import "core:mem"
+import "core:os"
 import "core:runtime"
-import ts "core:container/topological_sort"
+import aec "shared:ae_common"
 
 Mod_Id :: aec.Mod_Id
 Mod_Info :: aec.Mod_Info
@@ -13,6 +13,7 @@ Mod_Loader_Id :: aec.Mod_Loader_Id
 Mod_Loader :: aec.Mod_Loader
 Mod_Loader_Result :: aec.Mod_Loader_Result
 Mod_Load_Error :: aec.Mod_Load_Error
+Mod_Relation :: aec.Mod_Relation
 Mod_Status :: aec.Mod_Status
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
@@ -543,6 +544,7 @@ modmanager_add_queued_mods_to_load :: proc(mod_manager: ^Mod_Manager) {
 	}
 }
 
+//TODO(Vicix): Check also for mod version dependecies
 @(private)
 reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 	context.allocator = mod_manager.allocator
@@ -559,7 +561,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 	}
 	for _, mod_info in mod_manager.mod_infos {
 		for dependency in mod_info.dependencies {
-			dependency_id := modmanager_get_modid_from_name(mod_manager^, dependency)
+			dependency_id := modmanager_get_modid_from_name(mod_manager^, dependency.name)
 			if dependency_id == aec.INVALID_MODID {
 				continue
 			}
@@ -568,7 +570,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 		}
 
 		for dependant in mod_info.dependants {
-			dependant_id := modmanager_get_modid_from_name(mod_manager^, dependant)
+			dependant_id := modmanager_get_modid_from_name(mod_manager^, dependant.name)
 			if dependant_id == aec.INVALID_MODID {
 				continue
 			}

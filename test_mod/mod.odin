@@ -6,12 +6,12 @@ import ae "shared:ae_interface"
 // Make sure this descriptor is static and NOT CONSTANT
 // TODO(Vicix): Explain why constant does not work
 MOD_DESCRIPTOR := ae.Mod_Descriptor {
-	name = "Test_Mod_2",
+	name    = "Test_Mod_2",
 	version = ae.Version{0, 1, 0},
-	dependencies = []string{"abc", "cde"},
-	dependants = []string{"edc", "cba"},
-	init = init,
-	deinit = deinit,
+	// dependencies = []string{"abc", "cde"},
+	// dependants   = []string{"edc", "cba"},
+	init    = init,
+	deinit  = deinit,
 }
 
 init: ae.Mod_Init_Proc : proc() -> bool {

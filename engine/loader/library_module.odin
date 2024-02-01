@@ -4,8 +4,8 @@ import "core:dynlib"
 import "core:log"
 import "core:mem"
 import "core:os"
-import "core:strings"
 import "core:runtime"
+import "core:strings"
 import aec "shared:ae_common"
 
 Library_Module :: struct {
@@ -114,11 +114,11 @@ librarymodule_get_version :: proc(module: Library_Module) -> aec.Version {
 	return module.mod_export_data.version
 }
 
-librarymodule_get_mod_dependencies :: proc(module: Library_Module) -> []string {
+librarymodule_get_mod_dependencies :: proc(module: Library_Module) -> []Mod_Relation {
 	return module.mod_export_data.dependencies
 }
 
-librarymodule_get_mod_dependants :: proc(module: Library_Module) -> []string {
+librarymodule_get_mod_dependants :: proc(module: Library_Module) -> []Mod_Relation {
 	return module.mod_export_data.dependants
 }
 

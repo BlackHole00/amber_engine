@@ -87,6 +87,7 @@ Mod_Loader :: struct {
 	using itable: ^Mod_Loader_Proc_Table,
 	// Must be unique between mod loaders
 	name:         string,
+	version:      Version,
 	// A general description of the mod loader
 	description:  string,
 	user_data:    rawptr,
