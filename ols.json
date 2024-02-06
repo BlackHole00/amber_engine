@@ -1,29 +1,20 @@
 {
-    "$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
     "collections": [
-        {
-            "name": "core",
-            "path": "~/Applications/Odin/core"
-        }, 
+        // {
+        //     "name": "base",
+        //     "path": "/Users/vicix/Applications/Odin/base"
+        // },
         {
             "name": "vendor",
-            "path": "~/Applications/Odin/vendor"
+            "path": "/Users/vicix/Applications/Odin/vendor"
         },
         {
             "name": "shared",
             "path": "shared"
-        },
-        {
-            "name": "engine",
-            "path": "engine"
         }
     ],
     "enable_document_symbols": true,
     "enable_semantic_tokens": false,
     "enable_hover": true,
-    "enable_fake_methods": true,
-    "enable-inlay_hints": true,
-    "enable_snippets": true,
-    "enable_procedure_snippet": true,
-    "verbose": true,
+    "enable_snippets": true
 }

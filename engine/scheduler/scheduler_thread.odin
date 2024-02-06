@@ -18,7 +18,7 @@ Scheduler_Thread_Status :: enum {
 Scheduler_Thread_Descriptor :: struct {
 	scheduler:      ^Scheduler,
 	priority:       thread.Thread_Priority,
-	thread_idx:     int,
+	thread_id:      Thread_Id,
 	is_main_thread: bool,
 }
 
@@ -26,7 +26,7 @@ Scheduler_Thread :: struct {
 	allocator:      mem.Allocator,
 	scheduler:      ^Scheduler,
 	// @index_of: scheduler.threads
-	thread_idx:     int,
+	thread_id:      Thread_Id,
 	priority:       thread.Thread_Priority,
 	status:         Scheduler_Thread_Status,
 	is_main_thread: bool,
@@ -41,11 +41,11 @@ schedulerthread_init :: proc(
 	context.allocator = allocator
 	scheduler_thread.allocator = allocator
 
-	if descriptor.thread_idx > scheduler_get_thread_count(descriptor.scheduler^) {
-		log.errorf("The provided thread idx %d is not valid", descriptor.thread_idx)
+	if (int)(descriptor.thread_id) > scheduler_get_thread_count(descriptor.scheduler^) {
+		log.errorf("The provided thread idx %d is not valid", descriptor.thread_id)
 		return false
 	}
-	scheduler_thread.thread_idx = descriptor.thread_idx
+	scheduler_thread.thread_id = descriptor.thread_id
 
 	if descriptor.is_main_thread && scheduler_has_main_thread(descriptor.scheduler^) {
 		log.errorf("The user is trying to register a main thread whilst it is already registered")
@@ -103,7 +103,7 @@ schedulerthread_free :: proc(scheduler_thread: Scheduler_Thread) {
 schedulerthread_thread_proc :: proc(thr: ^thread.Thread) {
 	data := (^Scheduler_Thread)(thr.user_args[0])
 
-	log.infof("Hello from Scheduler_Thread %d", data.thread_idx)
+	log.infof("Hello from Scheduler_Thread %d", data.thread_id)
 
 	for sync.atomic_load(&data.status) != .Should_Stop {
 

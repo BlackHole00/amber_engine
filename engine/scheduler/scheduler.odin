@@ -3,23 +3,21 @@ package amber_engine_scheduler
 import "core:log"
 import "core:mem"
 import "core:os"
-import "core:sync"
 import aec "shared:ae_common"
 
 Task_Descriptor :: aec.Task_Descriptor
 Task_Info :: aec.Task_Info
 Task_Id :: aec.Task_Id
+Task_Result :: aec.Task_Result
+Thread_Id :: aec.Thread_Id
 
 Scheduler_Descriptor :: struct {
 	thread_count: int,
 }
 
 Scheduler :: struct {
-	allocator:            mem.Allocator,
-	threads:              []Scheduler_Thread,
-	incremental_task_idx: uint,
-	tasks:                map[Task_Id]Task_Info,
-	tasks_mutex:          sync.Mutex,
+	allocator: mem.Allocator,
+	threads:   []Scheduler_Thread,
 }
 
 scheduler_init :: proc(
@@ -52,15 +50,13 @@ scheduler_init :: proc(
 			   Scheduler_Thread_Descriptor {
 				   scheduler = scheduler,
 				   priority = .Normal,
-				   thread_idx = idx,
+				   thread_id = (Thread_Id)(idx),
 			   },
 		   ) {
 			log.errorf("Could not init thread")
 			return false
 		}
 	}
-
-	scheduler.tasks = make(map[Task_Id]Task_Info)
 
 	return true
 }
@@ -74,7 +70,6 @@ scheduler_free :: proc(scheduler: Scheduler) {
 	}
 
 	delete(scheduler.threads)
-	delete(scheduler.tasks)
 }
 
 scheduler_start :: proc(scheduler: ^Scheduler) {
@@ -83,28 +78,8 @@ scheduler_start :: proc(scheduler: ^Scheduler) {
 	}
 }
 
-scheduler_add_task :: proc(scheduler: ^Scheduler, task_descriptor: Task_Descriptor) -> Task_Id {
-	task_id := scheduler_get_task_id(scheduler)
-
-	task_info := Task_Info {
-		descriptor = task_descriptor,
-		identifier = task_id,
-		status     = .Queued,
-	}
-	if (sync.mutex_guard(&scheduler.tasks_mutex)) {
-		scheduler.tasks[task_id] = task_info
-	}
-
-	return task_id
-}
-
 scheduler_get_thread_count :: proc(scheduler: Scheduler) -> int {
 	return len(scheduler.threads) + 1
-}
-
-@(private)
-scheduler_get_task_id :: proc(scheduler: ^Scheduler) -> Task_Id {
-	return (Task_Id)(sync.atomic_add(&scheduler.incremental_task_idx, 1))
 }
 
 @(private)
