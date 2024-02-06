@@ -1,6 +1,7 @@
 package amber_engine_scheduler
 
 import "core:log"
+import "core:slice"
 import "core:sync"
 import "core:time"
 import aec "shared:ae_common"
@@ -267,19 +268,45 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 
 	case aec.Task_Result_Repeat_After:
 		task_info.status = .Queued
+		taskmanager_handle_waitings(manager, task_info.identifier)
 		taskmanager_register_task_info(manager, task_info)
 
 	case aec.Task_Result_Repeat:
 		task_info.status = .Queued
+		taskmanager_handle_waitings(manager, task_info.identifier)
 		taskmanager_register_task_info(manager, task_info)
 
 	case aec.Task_Result_Finished:
 		task_info.status = .Finished
 
+		taskmanager_handle_waitings(manager, task_info.identifier)
 		if task_info.free_when_finished {
 			taskinfo_free(task_info)
 		} else {
 			manager.completed_tasks[task_info.identifier] = task_info
+		}
+	}
+}
+
+@(private)
+taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task_Id) {
+	if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+		for &maybe_task in manager.currently_executing_tasks {
+			if task, ok := &maybe_task.?; ok {
+				if idx, found := slice.linear_search(task.waiting_for_tasks[:], completed_task);
+				   found {
+					unordered_remove(&task.waiting_for_tasks, idx)
+				}
+			}
+		}
+	}
+
+	if sync.rw_mutex_guard(&manager.tasks_mutex) {
+		for &task in manager.tasks {
+			if idx, found := slice.linear_search(task.waiting_for_tasks[:], completed_task);
+			   found {
+				unordered_remove(&task.waiting_for_tasks, idx)
+			}
 		}
 	}
 }
@@ -312,6 +339,10 @@ taskinfo_can_execute_task_now :: proc(
 	should_be_main_thread: bool,
 	now: time.Time,
 ) -> bool {
+	if len(task.waiting_for_tasks) > 0 {
+		return false
+	}
+
 	if should_be_main_thread && !task.execute_on_main_thread {
 		return false
 	}
