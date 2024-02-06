@@ -6,10 +6,14 @@ import "core:os"
 import aec "shared:ae_common"
 
 Task_Descriptor :: aec.Task_Descriptor
-Task_Info :: aec.Task_Info
 Task_Id :: aec.Task_Id
 Task_Result :: aec.Task_Result
 Thread_Id :: aec.Thread_Id
+
+Task_Info :: struct {
+	using info:      aec.Task_Info,
+	remaining_waits: int,
+}
 
 Scheduler_Descriptor :: struct {
 	thread_count: int,

@@ -14,10 +14,16 @@ Task_Result_Sleep :: struct {
 	duration: time.Duration,
 }
 Task_Result_Yield :: struct {}
+//TODO(Vicix): Handle this better
+Task_Result_Wait_For :: struct {
+	tasks:           []Task_Id,
+	_internal_tasks: [4]Task_Id,
+}
 Task_Result_Finished :: struct {}
 Task_Result :: union {
 	Task_Result_Finished,
 	Task_Result_Yield,
+	Task_Result_Wait_For,
 	Task_Result_Sleep,
 	Task_Result_Repeat,
 	Task_Result_Repeat_After,
@@ -60,6 +66,6 @@ Task_Info :: struct {
 	// nil if does not have a result yet
 	last_result:                   Task_Result,
 	//TODO(Vicix): Change into normal slice
-	waiting_for_tasks:             [dynamic]Task_Id,
+	waiting_for_tasks:             []Task_Id,
 }
 

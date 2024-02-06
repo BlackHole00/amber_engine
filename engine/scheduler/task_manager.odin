@@ -257,7 +257,7 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 	task_info := task_info
 	task_info.last_suspended_execution_time = time.now()
 
-	switch _ in task_info.last_result {
+	switch v in task_info.last_result {
 	case aec.Task_Result_Sleep:
 		task_info.status = .Suspended
 		taskmanager_register_task_info(manager, task_info)
@@ -276,6 +276,11 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 		taskmanager_handle_waitings(manager, task_info.identifier)
 		taskmanager_register_task_info(manager, task_info)
 
+	case aec.Task_Result_Wait_For:
+		task_info.status = .Suspended
+		task_info.remaining_waits = len(v.tasks)
+		taskmanager_register_task_info(manager, task_info)
+
 	case aec.Task_Result_Finished:
 		task_info.status = .Finished
 
@@ -290,22 +295,20 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 
 @(private)
 taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task_Id) {
-	if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+	if sync.rw_mutex_shared_guard(&manager.currently_executing_tasks_mutex) {
 		for &maybe_task in manager.currently_executing_tasks {
 			if task, ok := &maybe_task.?; ok {
-				if idx, found := slice.linear_search(task.waiting_for_tasks[:], completed_task);
-				   found {
-					unordered_remove(&task.waiting_for_tasks, idx)
+				if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
+					sync.atomic_add(&task.remaining_waits, -1)
 				}
 			}
 		}
 	}
 
-	if sync.rw_mutex_guard(&manager.tasks_mutex) {
+	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
 		for &task in manager.tasks {
-			if idx, found := slice.linear_search(task.waiting_for_tasks[:], completed_task);
-			   found {
-				unordered_remove(&task.waiting_for_tasks, idx)
+			if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
+				sync.atomic_add(&task.remaining_waits, -1)
 			}
 		}
 	}
@@ -339,7 +342,7 @@ taskinfo_can_execute_task_now :: proc(
 	should_be_main_thread: bool,
 	now: time.Time,
 ) -> bool {
-	if len(task.waiting_for_tasks) > 0 {
+	if task.remaining_waits <= 0 {
 		return false
 	}
 

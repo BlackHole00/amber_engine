@@ -6,7 +6,7 @@ Thread_Id :: distinct int
 
 Scheduler_Queue_Task_Proc :: #type proc(task_descriptor: Task_Descriptor) -> Task_Id
 
-Scheduler_Wait_For_Proc :: #type proc(task_ids: ..Task_Id, max_ms_wait_time := -1) -> bool
+// Scheduler_Wait_For_Proc :: #type proc(task_ids: ..Task_Id, max_ms_wait_time := -1) -> bool
 Scheduler_Get_Thread_Id_Proc :: #type proc() -> Thread_Id
 
 Scheduler_Get_Task_Info_Proc :: #type proc(task_id: Task_Id) -> (Task_Info, bool)
