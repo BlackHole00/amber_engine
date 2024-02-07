@@ -20,8 +20,9 @@ Scheduler_Descriptor :: struct {
 }
 
 Scheduler :: struct {
-	allocator: mem.Allocator,
-	threads:   []Scheduler_Thread,
+	allocator:    mem.Allocator,
+	threads:      []Scheduler_Thread,
+	task_manager: Task_Manager,
 }
 
 scheduler_init :: proc(
@@ -42,6 +43,8 @@ scheduler_init :: proc(
 			thread_count,
 		)
 	}
+
+	taskmanager_init(&scheduler.task_manager, thread_count)
 
 	scheduler.threads = make([]Scheduler_Thread, thread_count)
 	defer if !ok {
@@ -73,6 +76,7 @@ scheduler_free :: proc(scheduler: Scheduler) {
 		schedulerthread_free(thread)
 	}
 
+	taskmanager_free(scheduler.task_manager)
 	delete(scheduler.threads)
 }
 

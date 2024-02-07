@@ -1,9 +1,5 @@
 {
     "collections": [
-        // {
-        //     "name": "base",
-        //     "path": "/Users/vicix/Applications/Odin/base"
-        // },
         {
             "name": "vendor",
             "path": "/Users/vicix/Applications/Odin/vendor"
@@ -11,6 +7,10 @@
         {
             "name": "shared",
             "path": "shared"
+        },
+        {
+            "name": "engine",
+            "path": "engine"
         }
     ],
     "enable_document_symbols": true,

@@ -5,6 +5,7 @@ import "core:log"
 import "core:mem"
 import "core:sync"
 import "core:thread"
+import aec "shared:ae_common"
 
 _ :: sync
 
@@ -53,6 +54,7 @@ schedulerthread_init :: proc(
 	}
 	scheduler_thread.is_main_thread = descriptor.is_main_thread
 
+	scheduler_thread.scheduler = descriptor.scheduler
 	scheduler_thread.priority = descriptor.priority
 	scheduler_thread.thread = thread.create(schedulerthread_thread_proc, descriptor.priority)
 	if scheduler_thread.thread == nil {
@@ -105,8 +107,23 @@ schedulerthread_thread_proc :: proc(thr: ^thread.Thread) {
 
 	log.infof("Hello from Scheduler_Thread %d", data.thread_id)
 
-	for sync.atomic_load(&data.status) != .Should_Stop {
+	result: Task_Result = nil
+	descriptor: Task_Descriptor
+	for sync.atomic_load(&data.status) != .Should_Stop ||
+	    taskmanager_has_tasks(&data.scheduler.task_manager) {
+		task_id, task := taskmanager_assign_new_task(
+			&data.scheduler.task_manager,
+			data^,
+			result,
+			descriptor,
+		)
+		if task_id == aec.INVALID_TASK_ID {
+			result = nil
+			continue
+		}
 
+		result = task.task_proc(task_id, &task)
+		descriptor = task
 	}
 }
 

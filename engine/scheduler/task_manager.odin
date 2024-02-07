@@ -36,7 +36,7 @@ taskmanager_init :: proc(manager: ^Task_Manager, thread_count: int) {
 }
 
 // @thread_safety: Not thread safe, call only on main engine deinitialization
-taskmanager_deinit :: proc(manager: ^Task_Manager) {
+taskmanager_free :: proc(manager: Task_Manager) {
 	delete(manager.tasks)
 	delete(manager.completed_tasks)
 	delete(manager.currently_executing_tasks)
@@ -49,17 +49,17 @@ taskmanager_find_most_important_task :: proc(
 	scheduler_thread: Scheduler_Thread,
 	only_main_thread := false,
 ) -> (
-	Task_Info,
-	bool,
+	task_info: Task_Info,
+	has_tasks: bool,
 ) {
-	if len(manager.tasks) == 0 {
+	if len(manager.tasks) <= 0 {
 		return {}, false
 	}
 
 	now := time.now()
 
 	best_importance_factor := min(f32)
-	best_task_idx := 0
+	best_task_idx := -1
 
 	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
 		for task, i in manager.tasks {
@@ -77,11 +77,34 @@ taskmanager_find_most_important_task :: proc(
 				best_task_idx = i
 			}
 		}
+
+		if best_task_idx == -1 {
+			return {}, false
+		}
+
+		task_info = manager.tasks[best_task_idx]
+		unordered_remove(&manager.tasks, best_task_idx)
 	}
 
-	defer unordered_remove(&manager.tasks, best_task_idx)
+	return task_info, true
+}
 
-	return manager.tasks[best_task_idx], true
+taskmanager_has_tasks :: proc(manager: ^Task_Manager) -> bool {
+	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
+		if len(manager.tasks) > 0 {
+			return true
+		}
+	}
+
+	if sync.rw_mutex_shared_guard(&manager.currently_executing_tasks_mutex) {
+		for task in manager.currently_executing_tasks {
+			if task != nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 taskmanager_register_task :: proc(manager: ^Task_Manager, task: Task_Descriptor) -> Task_Id {
@@ -166,11 +189,12 @@ taskmanager_assign_new_task :: proc(
 	manager: ^Task_Manager,
 	scheduler_thread: Scheduler_Thread,
 	previous_task_result: Task_Result,
+	previous_task_descriptor: Task_Descriptor,
 ) -> (
 	Task_Id,
 	Task_Descriptor,
 ) {
-	previous_task: Maybe(Task_Info) = ---
+	previous_task: Maybe(Task_Info) = nil
 	previous_task_result := previous_task_result
 
 	next_task, has_tasks := taskmanager_find_most_important_task(
@@ -181,19 +205,16 @@ taskmanager_assign_new_task :: proc(
 
 	now := time.now()
 
-	next_task.last_resumed_execution_time = now
-	next_task.status = .Running
-
 	if !has_tasks {
 		if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
-			previous_task := manager.currently_executing_tasks[scheduler_thread.thread_id]
+			previous_task = manager.currently_executing_tasks[scheduler_thread.thread_id]
 			manager.currently_executing_tasks[scheduler_thread.thread_id] = nil
 		}
-		return aec.INVALID_TASK_ID, {}
-	}
+	} else if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+		next_task.last_resumed_execution_time = now
+		next_task.status = .Running
 
-	if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
-		previous_task := manager.currently_executing_tasks[scheduler_thread.thread_id]
+		previous_task = manager.currently_executing_tasks[scheduler_thread.thread_id]
 		manager.currently_executing_tasks[scheduler_thread.thread_id] = next_task
 	}
 
@@ -205,15 +226,22 @@ taskmanager_assign_new_task :: proc(
 	}
 
 	if previous_task == nil {
-		return next_task.identifier, next_task.descriptor
+		if has_tasks {
+			return next_task.identifier, next_task.descriptor
+		}
+		return aec.INVALID_TASK_ID, {}
 	}
 
 	new_previous_task := previous_task.?
 
 	new_previous_task.last_result = previous_task_result
+	new_previous_task.descriptor = previous_task_descriptor
 	taskmanager_handle_executed_task(manager, new_previous_task)
 
-	return next_task.identifier, next_task.descriptor
+	if has_tasks {
+		return next_task.identifier, next_task.descriptor
+	}
+	return aec.INVALID_TASK_ID, {}
 }
 
 @(private)
@@ -244,7 +272,6 @@ taskmanager_is_task_currently_executing :: proc(manager: ^Task_Manager, task_id:
 
 @(private)
 taskinfo_free :: proc(task_info: Task_Info) {
-	delete(task_info.waiting_for_tasks)
 }
 
 @(private)
@@ -337,20 +364,16 @@ taskinfo_get_importance_factor :: proc(task: Task_Info, now: time.Time) -> f32 {
 }
 
 @(private)
-taskinfo_can_execute_task_now :: proc(
-	task: Task_Info,
-	should_be_main_thread: bool,
-	now: time.Time,
-) -> bool {
-	if task.remaining_waits <= 0 {
+taskinfo_can_execute_task_now :: proc(task: Task_Info, main_thread: bool, now: time.Time) -> bool {
+	if task.remaining_waits > 0 {
 		return false
 	}
 
-	if should_be_main_thread && !task.execute_on_main_thread {
+	if !main_thread && task.execute_on_main_thread {
 		return false
 	}
 
-	if task.last_result == nil {
+	if task.last_result != nil {
 		if sleep, ok := task.last_result.(aec.Task_Result_Sleep); ok {
 			if time.duration_nanoseconds(time.diff(task.last_suspended_execution_time.?, now)) <
 			   time.duration_nanoseconds(sleep.duration) {

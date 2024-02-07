@@ -1,5 +1,5 @@
 {
   "mods_location": "mods",
-  "scheduler_threads": 8,
+  "scheduler_threads": 2,
   "logging_level": "Debug"
 }
