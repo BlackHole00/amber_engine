@@ -17,15 +17,15 @@ Task_Manager :: struct {
 	task_index_counter:              Task_Id,
 	// A list of the currently registered (and suspended tasks)
 	tasks:                           [dynamic]Task_Info,
-	tasks_mutex:                     sync.RW_Mutex,
+	tasks_mutex:                     sync.Mutex,
 	// Some tasks might not free automatically, but the user must request their
 	// freeing. Those tasks will be stored in the completed_tasks field
 	completed_tasks:                 map[Task_Id]Task_Info,
-	completed_tasks_mutex:           sync.RW_Mutex,
+	completed_tasks_mutex:           sync.Mutex,
 	// Every thread can only execute only one task at a time. The currently 
 	// executed tasks are stored here
 	currently_executing_tasks:       []Maybe(Task_Info),
-	currently_executing_tasks_mutex: sync.RW_Mutex,
+	currently_executing_tasks_mutex: sync.Mutex,
 }
 
 taskmanager_init :: proc(manager: ^Task_Manager, thread_count: int) {
@@ -61,7 +61,7 @@ taskmanager_find_most_important_task :: proc(
 	best_importance_factor := min(f32)
 	best_task_idx := -1
 
-	if sync.rw_mutex_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		for task, i in manager.tasks {
 			if !taskinfo_can_execute_task_now(task, only_main_thread, now) {
 				continue
@@ -90,13 +90,13 @@ taskmanager_find_most_important_task :: proc(
 }
 
 taskmanager_has_tasks :: proc(manager: ^Task_Manager) -> bool {
-	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		if len(manager.tasks) > 0 {
 			return true
 		}
 	}
 
-	if sync.rw_mutex_shared_guard(&manager.currently_executing_tasks_mutex) {
+	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 		for task in manager.currently_executing_tasks {
 			if task != nil {
 				return true
@@ -133,7 +133,7 @@ taskmanager_is_task_valid :: proc(manager: ^Task_Manager, task_id: Task_Id) -> b
 }
 
 taskmanager_is_task_completed :: proc(manager: ^Task_Manager, task_id: Task_Id) -> bool {
-	if sync.rw_mutex_shared_guard(&manager.completed_tasks_mutex) {
+	if sync.mutex_guard(&manager.completed_tasks_mutex) {
 		return task_id in manager.completed_tasks
 	}
 
@@ -147,7 +147,7 @@ taskmanager_free_task :: proc(manager: ^Task_Manager, task_id: Task_Id) -> (Task
 		return {}, false
 	}
 
-	if sync.rw_mutex_guard(&manager.completed_tasks_mutex) {
+	if sync.mutex_guard(&manager.completed_tasks_mutex) {
 		deleted_key, deleted_task := delete_key(&manager.completed_tasks, task_id)
 
 		if deleted_key != 0 {
@@ -156,7 +156,7 @@ taskmanager_free_task :: proc(manager: ^Task_Manager, task_id: Task_Id) -> (Task
 		}
 	}
 
-	if sync.rw_mutex_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		info := taskmanager_get_queued_task_ptr(manager, task_id)
 
 		if info != nil {
@@ -169,7 +169,7 @@ taskmanager_free_task :: proc(manager: ^Task_Manager, task_id: Task_Id) -> (Task
 		}
 	}
 
-	if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 		info := taskmanager_get_currently_executing_task_ptr(manager, task_id)
 
 		if info != nil {
@@ -206,11 +206,11 @@ taskmanager_assign_new_task :: proc(
 	now := time.now()
 
 	if !has_tasks {
-		if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+		if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 			previous_task = manager.currently_executing_tasks[scheduler_thread.thread_id]
 			manager.currently_executing_tasks[scheduler_thread.thread_id] = nil
 		}
-	} else if sync.rw_mutex_guard(&manager.currently_executing_tasks_mutex) {
+	} else if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 		next_task.last_resumed_execution_time = now
 		next_task.status = .Running
 
@@ -246,7 +246,7 @@ taskmanager_assign_new_task :: proc(
 
 @(private)
 taskmanager_is_task_queued :: proc(manager: ^Task_Manager, task_id: Task_Id) -> bool {
-	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		for task in manager.tasks {
 			if task.identifier == task_id {
 				return true
@@ -259,7 +259,7 @@ taskmanager_is_task_queued :: proc(manager: ^Task_Manager, task_id: Task_Id) -> 
 
 @(private)
 taskmanager_is_task_currently_executing :: proc(manager: ^Task_Manager, task_id: Task_Id) -> bool {
-	if sync.rw_mutex_shared_guard(&manager.currently_executing_tasks_mutex) {
+	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 		for task in manager.currently_executing_tasks {
 			if task, ok := task.?; ok && task.identifier == task_id {
 				return true
@@ -322,7 +322,7 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 
 @(private)
 taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task_Id) {
-	if sync.rw_mutex_shared_guard(&manager.currently_executing_tasks_mutex) {
+	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
 		for &maybe_task in manager.currently_executing_tasks {
 			if task, ok := &maybe_task.?; ok {
 				if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
@@ -332,7 +332,7 @@ taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task
 		}
 	}
 
-	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		for &task in manager.tasks {
 			if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
 				sync.atomic_add(&task.remaining_waits, -1)
@@ -343,7 +343,7 @@ taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task
 
 @(private)
 taskmanager_register_task_info :: proc(manager: ^Task_Manager, task: Task_Info) {
-	if sync.rw_mutex_guard(&manager.tasks_mutex) {
+	if sync.mutex_guard(&manager.tasks_mutex) {
 		append(&manager.tasks, task)
 	}
 }
