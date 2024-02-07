@@ -61,7 +61,7 @@ taskmanager_find_most_important_task :: proc(
 	best_importance_factor := min(f32)
 	best_task_idx := -1
 
-	if sync.rw_mutex_shared_guard(&manager.tasks_mutex) {
+	if sync.rw_mutex_guard(&manager.tasks_mutex) {
 		for task, i in manager.tasks {
 			if !taskinfo_can_execute_task_now(task, only_main_thread, now) {
 				continue

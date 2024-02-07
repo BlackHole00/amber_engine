@@ -86,7 +86,7 @@ schedulerthread_join_multiple :: proc(scheduler_threads: ..Scheduler_Thread) {
 	started_threads := 0
 	for &scheduler_thread in scheduler_threads {
 		if sync.atomic_load(&scheduler_thread.status) == .Running {
-			sync.atomic_store(&scheduler_thread.status, .Should_Stop)
+			// sync.atomic_store(&scheduler_thread.status, .Should_Stop)
 
 			raw_threads[started_threads] = scheduler_thread.thread
 			started_threads += 1
