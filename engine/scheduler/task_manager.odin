@@ -1,23 +1,13 @@
 package amber_engine_scheduler
 
 import "core:log"
-import "core:slice"
 import "core:sync"
 import "core:time"
 import aec "shared:ae_common"
 
-@(private)
-TASK_PRIORITY_MODIFIERS := [?]f32 {
-	aec.Task_Priority.Low    = 1,
-	aec.Task_Priority.Medium = 2,
-	aec.Task_Priority.High   = 3,
-}
-
 Task_Manager :: struct {
 	task_index_counter:              Task_Id,
-	// A list of the currently registered (and suspended tasks)
-	tasks:                           [dynamic]Task_Info,
-	tasks_mutex:                     sync.Mutex,
+	task_queue:                      Task_Queue,
 	// Some tasks might not free automatically, but the user must request their
 	// freeing. Those tasks will be stored in the completed_tasks field
 	completed_tasks:                 map[Task_Id]Task_Info,
@@ -30,20 +20,18 @@ Task_Manager :: struct {
 
 taskmanager_init :: proc(manager: ^Task_Manager, thread_count: int) {
 	// pq.init(&manager.tasks, priorityqueue_less, priorityqueue_swap)
-	manager.tasks = make([dynamic]Task_Info)
+	taskqueue_init(&manager.task_queue)
 	manager.completed_tasks = make(map[Task_Id]Task_Info)
 	manager.currently_executing_tasks = make([]Maybe(Task_Info), thread_count)
 }
 
 // @thread_safety: Not thread safe, call only on main engine deinitialization
-taskmanager_free :: proc(manager: Task_Manager) {
-	delete(manager.tasks)
+taskmanager_free :: proc(manager: ^Task_Manager) {
+	taskqueue_free(&manager.task_queue)
 	delete(manager.completed_tasks)
 	delete(manager.currently_executing_tasks)
 }
 
-//NOTE(Vicix): Very dumb way of doing things, should probably study a dynamic 
-//             queue method. THIS IS VEEERY DUMB!
 taskmanager_find_most_important_task :: proc(
 	manager: ^Task_Manager,
 	scheduler_thread: Scheduler_Thread,
@@ -52,48 +40,16 @@ taskmanager_find_most_important_task :: proc(
 	task_info: Task_Info,
 	has_tasks: bool,
 ) {
-	if len(manager.tasks) <= 0 {
-		return {}, false
+	if only_main_thread {
+		unimplemented()
 	}
 
-	now := time.now()
-
-	best_importance_factor := min(f32)
-	best_task_idx := -1
-
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		for task, i in manager.tasks {
-			if !taskinfo_can_execute_task_now(task, only_main_thread, now) {
-				continue
-			}
-
-			importance_factor := taskinfo_get_importance_factor(task, now)
-			if importance_factor > best_importance_factor {
-				if only_main_thread && !task.execute_on_main_thread {
-					continue
-				}
-
-				best_importance_factor = importance_factor
-				best_task_idx = i
-			}
-		}
-
-		if best_task_idx == -1 {
-			return {}, false
-		}
-
-		task_info = manager.tasks[best_task_idx]
-		unordered_remove(&manager.tasks, best_task_idx)
-	}
-
-	return task_info, true
+	return taskqueue_pop(&manager.task_queue)
 }
 
 taskmanager_has_tasks :: proc(manager: ^Task_Manager) -> bool {
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		if len(manager.tasks) > 0 {
-			return true
-		}
+	if !taskqueue_is_empty(&manager.task_queue) {
+		return true
 	}
 
 	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
@@ -156,33 +112,34 @@ taskmanager_free_task :: proc(manager: ^Task_Manager, task_id: Task_Id) -> (Task
 		}
 	}
 
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		info := taskmanager_get_queued_task_ptr(manager, task_id)
+	unimplemented()
+	// if sync.mutex_guard(&manager.tasks_mutex) {
+	// 	info := taskmanager_get_queued_task_ptr(manager, task_id)
 
-		if info != nil {
-			log.warn(
-				"The user requested freeing a task that is currently executing or queued up. It will instead be automatically freed when it will terminate",
-			)
+	// 	if info != nil {
+	// 		log.warn(
+	// 			"The user requested freeing a task that is currently executing or queued up. It will instead be automatically freed when it will terminate",
+	// 		)
 
-			info.free_when_finished = true
-			return info^, true
-		}
-	}
+	// 		info.free_when_finished = true
+	// 		return info^, true
+	// 	}
+	// }
 
-	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
-		info := taskmanager_get_currently_executing_task_ptr(manager, task_id)
+	// if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
+	// 	info := taskmanager_get_currently_executing_task_ptr(manager, task_id)
 
-		if info != nil {
-			log.warn(
-				"The user requested freeing a task that is currently executing or queued up. It will instead be automatically freed when it will terminate",
-			)
+	// 	if info != nil {
+	// 		log.warn(
+	// 			"The user requested freeing a task that is currently executing or queued up. It will instead be automatically freed when it will terminate",
+	// 		)
 
-			info.free_when_finished = true
-			return info^, true
-		}
-	}
+	// 		info.free_when_finished = true
+	// 		return info^, true
+	// 	}
+	// }
 
-	return {}, false
+	// return {}, false
 }
 
 taskmanager_assign_new_task :: proc(
@@ -194,6 +151,12 @@ taskmanager_assign_new_task :: proc(
 	Task_Id,
 	Task_Descriptor,
 ) {
+	defer taskqueue_check_waiting_tasks(&manager.task_queue)
+
+	// if sync.mutex_guard(&manager.task_queue.waiting_mutex) {
+	// 	log.infof("%#v", manager.task_queue.waiting_queue.queue[:])
+	// }
+
 	previous_task: Maybe(Task_Info) = nil
 	previous_task_result := previous_task_result
 
@@ -246,15 +209,7 @@ taskmanager_assign_new_task :: proc(
 
 @(private)
 taskmanager_is_task_queued :: proc(manager: ^Task_Manager, task_id: Task_Id) -> bool {
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		for task in manager.tasks {
-			if task.identifier == task_id {
-				return true
-			}
-		}
-	}
-
-	return false
+	return taskqueue_is_task_present(&manager.task_queue, task_id)
 }
 
 @(private)
@@ -322,30 +277,29 @@ taskmanager_handle_executed_task :: proc(manager: ^Task_Manager, task_info: Task
 
 @(private)
 taskmanager_handle_waitings :: proc(manager: ^Task_Manager, completed_task: Task_Id) {
-	if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
-		for &maybe_task in manager.currently_executing_tasks {
-			if task, ok := &maybe_task.?; ok {
-				if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
-					sync.atomic_add(&task.remaining_waits, -1)
-				}
-			}
-		}
-	}
+	//TODO
+	// if sync.mutex_guard(&manager.currently_executing_tasks_mutex) {
+	// 	for &maybe_task in manager.currently_executing_tasks {
+	// 		if task, ok := &maybe_task.?; ok {
+	// 			if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
+	// 				sync.atomic_add(&task.remaining_waits, -1)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		for &task in manager.tasks {
-			if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
-				sync.atomic_add(&task.remaining_waits, -1)
-			}
-		}
-	}
+	// if sync.mutex_guard(&manager.tasks_mutex) {
+	// 	for &task in manager.tasks {
+	// 		if _, found := slice.linear_search(task.waiting_for_tasks, completed_task); found {
+	// 			sync.atomic_add(&task.remaining_waits, -1)
+	// 		}
+	// 	}
+	// }
 }
 
 @(private)
 taskmanager_register_task_info :: proc(manager: ^Task_Manager, task: Task_Info) {
-	if sync.mutex_guard(&manager.tasks_mutex) {
-		append(&manager.tasks, task)
-	}
+	taskqueue_append(&manager.task_queue, task)
 }
 
 @(private)
@@ -392,17 +346,17 @@ taskinfo_can_execute_task_now :: proc(task: Task_Info, main_thread: bool, now: t
 	return true
 }
 
-// @thread_safety: not thread safe
-@(private = "file")
-taskmanager_get_queued_task_ptr :: proc(manager: ^Task_Manager, task_id: Task_Id) -> ^Task_Info {
-	for &task in manager.tasks {
-		if task.identifier == task_id {
-			return &task
-		}
-	}
+// // @thread_safety: not thread safe
+// @(private = "file")
+// taskmanager_get_queued_task_ptr :: proc(manager: ^Task_Manager, task_id: Task_Id) -> ^Task_Info {
+// 	for &task in manager.tasks {
+// 		if task.identifier == task_id {
+// 			return &task
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // @thread_safety: not thread safe
 @(private = "file")
@@ -410,9 +364,13 @@ taskmanager_get_currently_executing_task_ptr :: proc(
 	manager: ^Task_Manager,
 	task_id: Task_Id,
 ) -> ^Task_Info {
-	for &task in manager.tasks {
-		if task.identifier == task_id {
-			return &task
+	for &task in manager.currently_executing_tasks {
+		if task == nil {
+			continue
+		}
+
+		if task.?.identifier == task_id {
+			return &task.?
 		}
 	}
 

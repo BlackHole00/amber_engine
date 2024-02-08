@@ -68,7 +68,7 @@ scheduler_init :: proc(
 	return true
 }
 
-scheduler_free :: proc(scheduler: Scheduler) {
+scheduler_free :: proc(scheduler: ^Scheduler) {
 	context.allocator = scheduler.allocator
 
 	schedulerthread_join_multiple(..scheduler.threads)
@@ -76,7 +76,7 @@ scheduler_free :: proc(scheduler: Scheduler) {
 		schedulerthread_free(thread)
 	}
 
-	taskmanager_free(scheduler.task_manager)
+	taskmanager_free(&scheduler.task_manager)
 	delete(scheduler.threads)
 }
 

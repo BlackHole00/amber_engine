@@ -44,7 +44,7 @@ main :: proc() {
 		scheduler.Scheduler_Descriptor{thread_count = globals.config.scheduler_threads},
 	)
 	scheduler.scheduler_start(&schdlr)
-	defer scheduler.scheduler_free(schdlr)
+	defer scheduler.scheduler_free(&schdlr)
 
 	scheduler.taskmanager_register_task(&schdlr.task_manager, aec.Task_Descriptor {
 		task_proc = proc(
