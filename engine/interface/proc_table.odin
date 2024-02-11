@@ -11,6 +11,17 @@ proctable_init :: proc(table: ^aec.Proc_Table) {
 	table.get_config = get_config
 	table.get_userconfig = get_userconfig
 
+	table.storage_register_resource_type = storage_register_resource_type
+	table.storage_is_resource_type_valid = storage_is_resource_type_valid
+	table.storage_add_resource = storage_add_resource
+	table.storage_get_resource = storage_get_resource
+	table.storage_set_resource = storage_set_resource
+	table.storage_remove_resource = storage_remove_resource
+	table.storage_is_resource_valid = storage_is_resource_valid
+	table.storage_get_resource_type_info = storage_get_resource_type_info
+	table.storage_get_resource_info = storage_get_resource_info
+	table.storage_get_registered_types_info_list = storage_get_registered_types_info_list
+
 	table.modmanager_register_modloader = modmanager_register_modloader
 	table.modmanager_remove_modloader = modmanager_remove_modloader
 	table.modmanager_get_modloaderid = modmanager_get_modloaderid
