@@ -31,6 +31,7 @@ taskqueue_free :: proc(task_queue: ^Task_Queue) {
 	for &q in task_queue.queues {
 		pq.destroy(&q)
 	}
+	pq.destroy(&task_queue.waiting_queue)
 }
 
 taskqueue_append :: proc(task_queue: ^Task_Queue, task: Task_Info) {
@@ -117,19 +118,19 @@ taskqueue_check_waiting_tasks :: proc(task_queue: ^Task_Queue) {
 taskqueue_is_empty :: proc(task_queue: ^Task_Queue) -> bool {
 	if sync.mutex_guard(&task_queue.waiting_mutex) {
 		if pq.len(task_queue.waiting_queue) > 0 {
-			return true
+			return false
 		}
 	}
 
 	for queue, i in task_queue.queues {
 		if sync.mutex_guard(&task_queue.mutexes[i]) {
 			if pq.len(queue) > 0 {
-				return true
+				return false
 			}
 		}
 	}
 
-	return false
+	return true
 }
 
 taskqueue_is_task_present :: proc(task_queue: ^Task_Queue, task_id: Task_Id) -> bool {
