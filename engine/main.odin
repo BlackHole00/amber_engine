@@ -8,6 +8,7 @@ import "engine:config"
 import "engine:globals"
 import "engine:interface"
 import "engine:loader"
+import "engine:namespace_manager"
 import "engine:scheduler"
 import "engine:storage"
 import aec "shared:ae_common"
@@ -22,6 +23,7 @@ _ :: globals
 _ :: scheduler
 _ :: storage
 _ :: time
+_ :: namespace_manager
 
 main :: proc() {
 	context = common.default_context()
@@ -41,6 +43,16 @@ main :: proc() {
 	log.infof("Using config %#v", globals.config)
 
 	context.logger.lowest_level = globals.config.logging_level
+
+	namespace_manager.init()
+	defer namespace_manager.deinit()
+
+	assert(namespace_manager.find_namespace("odin") == 0)
+	assert(namespace_manager.find_namespace("core") == 0)
+	assert(namespace_manager.find_namespace("base") == 0)
+	assert(namespace_manager.find_namespace("amber_engine") == 1)
+	assert(namespace_manager.find_namespace("ae") == 1)
+	assert(namespace_manager.find_namespace("error") == aec.INVALID_NAMESPACE_ID)
 
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)

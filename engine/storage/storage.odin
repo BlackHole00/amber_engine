@@ -44,7 +44,6 @@ Storage :: struct {
 	resource_types_mutex:                  sync.Mutex,
 	resource_infos:                        map[Resource_Id]Resource_Info,
 	resource_infos_mutex:                  sync.Mutex,
-	//NOTE(Vicix): all entries are alligned to 32 bits
 	resource_buffer:                       [dynamic]u32,
 	resource_buffer_mutex:                 sync.Mutex,
 	// Contains if a 32bit/4bytes segment of memory in the resource_buffer is
