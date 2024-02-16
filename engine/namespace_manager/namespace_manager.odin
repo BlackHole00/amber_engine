@@ -35,7 +35,7 @@ init :: proc(allocator := context.allocator) {
 	context.allocator = namespace_manager.allocator
 
 	namespace_manager.allocator = allocator
-	if virtual.arena_init_growing(&namespace_manager.arena) != .None {
+	if virtual.arena_init_growing(&namespace_manager.arena, mem.Kilobyte) != .None {
 		log.panicf("Could not create a virtual arena")
 	}
 
@@ -107,6 +107,21 @@ get_namespace_names :: proc(namespace: Namespace_Id, allocator: mem.Allocator) -
 
 	if sync.guard(&namespace_manager.mutex) {
 		return slice.clone(namespace_manager.namespaces[namespace], allocator)
+	}
+	unreachable()
+}
+
+get_first_namespace_name :: proc(namespace: Namespace_Id) -> string {
+	if !is_namespace_valid(namespace) {
+		log.errorf(
+			"Could not get the first name of namespace %d: The namespace is not valid",
+			namespace,
+		)
+		return {}
+	}
+
+	if sync.guard(&namespace_manager.mutex) {
+		return namespace_manager.namespaces[namespace][0]
 	}
 	unreachable()
 }
