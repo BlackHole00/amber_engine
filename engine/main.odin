@@ -11,6 +11,7 @@ import "engine:loader"
 import "engine:namespace_manager"
 import "engine:scheduler"
 import "engine:storage"
+import "engine:type_manager"
 import aec "shared:ae_common"
 
 _ :: log
@@ -24,6 +25,7 @@ _ :: scheduler
 _ :: storage
 _ :: time
 _ :: namespace_manager
+_ :: type_manager
 
 main :: proc() {
 	context = common.default_context()
@@ -53,6 +55,9 @@ main :: proc() {
 	assert(namespace_manager.find_namespace("amber_engine") == 1)
 	assert(namespace_manager.find_namespace("ae") == 1)
 	assert(namespace_manager.find_namespace("error") == aec.INVALID_NAMESPACE_ID)
+
+	type_manager.init()
+	defer type_manager.deinit()
 
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
