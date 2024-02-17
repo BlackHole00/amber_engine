@@ -255,50 +255,52 @@ typeid_to_index :: proc(type: Type_Id) -> int {
 	return (int)(type.type)
 }
 
-//TODO(Vicix): Add more types
 @(private)
 get_name_of_odin_typeid :: proc(type: typeid) -> string {
 	info := type_info_of(type)
 
-	if named_info, ok := info.variant.(reflect.Type_Info_Named); ok {
-		return named_info.name
-	}
+	//TODO(Vicix): do ALL types
+	#partial switch v in info.variant {
+	case reflect.Type_Info_Named:
+		return v.name
 
-	if integer_info, ok := info.variant.(reflect.Type_Info_Integer); ok {
+	case reflect.Type_Info_Integer:
 		switch {
-		case integer_info.signed && info.size == 1:
+		case v.signed && info.size == 1:
 			return "i8"
-		case integer_info.signed && info.size == 2:
+		case v.signed && info.size == 2:
 			return "i16"
-		case integer_info.signed && info.size == 4:
+		case v.signed && info.size == 4:
 			return "i32"
-		case integer_info.signed && info.size == 8:
+		case v.signed && info.size == 8:
 			return "i64"
-		case !integer_info.signed && info.size == 1:
+		case v.signed && info.size == 16:
+			return "i128"
+		case !v.signed && info.size == 1:
 			return "u8"
-		case !integer_info.signed && info.size == 2:
+		case !v.signed && info.size == 2:
 			return "u16"
-		case !integer_info.signed && info.size == 4:
+		case !v.signed && info.size == 4:
 			return "u32"
-		case !integer_info.signed && info.size == 8:
+		case !v.signed && info.size == 8:
 			return "u64"
+		case !v.signed && info.size == 16:
+			return "u128"
 		}
-	}
 
-	if _, ok := info.variant.(reflect.Type_Info_Float); ok {
-		switch {
-		case info.size == 4:
+	case reflect.Type_Info_Float:
+		if info.size == 4 {
 			return "f32"
-		case info.size == 8:
+		} else {
 			return "f64"
 		}
-	}
 
-	if string_info, ok := info.variant.(reflect.Type_Info_String); ok {
-		if string_info.is_cstring {
+	case reflect.Type_Info_String:
+		if v.is_cstring {
 			return "cstring"
+		} else {
+			return "string"
 		}
-		return "string"
 	}
 
 	panic("Unsupported type")

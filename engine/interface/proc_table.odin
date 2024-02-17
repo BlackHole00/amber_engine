@@ -2,6 +2,7 @@ package amber_engine_interface
 
 import "core:log"
 import "engine:config"
+import "engine:namespace_manager"
 import aec "shared:ae_common"
 
 proctable_init :: proc(table: ^aec.Proc_Table) {
@@ -10,6 +11,13 @@ proctable_init :: proc(table: ^aec.Proc_Table) {
 	table.get_version = config.get_version
 	table.get_config = get_config
 	table.get_userconfig = get_userconfig
+
+	table.namespacemanager_register_namespace = namespace_manager.register_namespace
+	table.namespacemanager_register_namespace_alias = namespace_manager.register_namespace_alias
+	table.namespacemanager_is_namespace_valid = namespace_manager.is_namespace_valid
+	table.namespacemanager_get_namespace_names = namespace_manager.get_namespace_names
+	table.namespacemanager_get_first_namespace_name = namespace_manager.get_first_namespace_name
+	table.namespacemanager_find_namespace = namespace_manager.find_namespace
 
 	table.storage_register_resource_type = storage_register_resource_type
 	table.storage_is_resource_type_valid = storage_is_resource_type_valid

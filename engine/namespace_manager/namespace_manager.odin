@@ -16,6 +16,9 @@ ODIN_NAMESPACE_NAMES := aec.ODIN_NAMESPACE_NAMES
 @(private)
 AMBER_ENGINE_NAMESPACE_NAMES := aec.AMBER_ENGINE_NAMESPACE_NAMES
 
+ODIN_NAMESPACE :: (Namespace_Id)(0)
+AMBER_ENGINE_NAMESPACE :: (Namespace_Id)(1)
+
 //TODO(Vicix): Should I create an arena for every struct? NO!
 @(private)
 namespace_manager: struct {
@@ -75,13 +78,18 @@ register_namespace :: proc(namespace: string, location := #caller_location) -> N
 	unreachable()
 }
 
-register_namespace_alias :: proc(namespace: Namespace_Id, alias: string) -> bool {
+register_namespace_alias :: proc(
+	namespace: Namespace_Id,
+	alias: string,
+	location := #caller_location,
+) -> bool {
 	context.allocator = namespace_manager.allocator
 
 	if !is_namespace_valid(namespace) {
 		log.errorf(
 			"Could not create an alias for namespace %d: The namespace is not valid",
 			namespace,
+			location = location,
 		)
 		return false
 	}
@@ -99,9 +107,17 @@ is_namespace_valid :: proc(namespace: Namespace_Id) -> bool {
 	return common.idgenerator_is_id_valid(&namespace_manager.namespace_id_generator, namespace)
 }
 
-get_namespace_names :: proc(namespace: Namespace_Id, allocator: mem.Allocator) -> []string {
+get_namespace_names :: proc(
+	namespace: Namespace_Id,
+	allocator: mem.Allocator,
+	location := #caller_location,
+) -> []string {
 	if !is_namespace_valid(namespace) {
-		log.errorf("Could not get names of namespace %d: The namespace is not valid", namespace)
+		log.errorf(
+			"Could not get names of namespace %d: The namespace is not valid",
+			namespace,
+			location = location,
+		)
 		return {}
 	}
 
@@ -111,11 +127,12 @@ get_namespace_names :: proc(namespace: Namespace_Id, allocator: mem.Allocator) -
 	unreachable()
 }
 
-get_first_namespace_name :: proc(namespace: Namespace_Id) -> string {
+get_first_namespace_name :: proc(namespace: Namespace_Id, location := #caller_location) -> string {
 	if !is_namespace_valid(namespace) {
 		log.errorf(
 			"Could not get the first name of namespace %d: The namespace is not valid",
 			namespace,
+			location = location,
 		)
 		return {}
 	}
@@ -162,6 +179,7 @@ arena_allocator :: #force_inline proc() -> mem.Allocator {
 
 @(private)
 register_builtin_types :: proc() {
+	//NOTE(Vicix): The engine internals assume this EXACT order
 	odin_namespace := register_namespace(ODIN_NAMESPACE_NAMES[0])
 	for i in 0 ..< len(ODIN_NAMESPACE_NAMES) {
 		register_namespace_alias(odin_namespace, ODIN_NAMESPACE_NAMES[i])

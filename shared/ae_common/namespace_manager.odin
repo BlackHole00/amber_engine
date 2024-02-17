@@ -1,5 +1,6 @@
 package ae_common
 
+import "base:runtime"
 import "core:mem"
 import "core:strings"
 
@@ -14,10 +15,14 @@ Namespaced_String :: struct {
 Namespace_Id :: distinct u32
 INVALID_NAMESPACE_ID :: max(Namespace_Id)
 
-Namespace_Manager_Register_Namespace_Proc :: #type proc(namespace: string) -> Namespace_Id
-Namespace_Manager_Register_Namespace_Alias :: #type proc(
+Namespace_Manager_Register_Namespace_Proc :: #type proc(
+	namespace: string,
+	location: runtime.Source_Code_Location,
+) -> Namespace_Id
+Namespace_Manager_Register_Namespace_Alias_Proc :: #type proc(
 	namespace: Namespace_Id,
 	alias: string,
+	location: runtime.Source_Code_Location,
 ) -> bool
 
 Namespace_Manager_Is_Namespace_Valid_Proc :: #type proc(namespace: Namespace_Id) -> bool
@@ -25,7 +30,13 @@ Namespace_Manager_Is_Namespace_Valid_Proc :: #type proc(namespace: Namespace_Id)
 Namespace_Manager_Get_Namespace_Names_Proc :: #type proc(
 	namespace: Namespace_Id,
 	allocator: mem.Allocator,
+	location: runtime.Source_Code_Location,
 ) -> []string
+Namespace_Manager_Get_First_Namespace_Name_Proc :: #type proc(
+	namespace: Namespace_Id,
+	location: runtime.Source_Code_Location,
+) -> string
+
 Namespace_Manager_Find_Namespace_Proc :: #type proc(namespace: string) -> Namespace_Id
 
 string_as_namespacedstring :: proc(namespace: Namespace_Id, str: string) -> Namespaced_String {
