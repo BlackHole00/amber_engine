@@ -82,7 +82,6 @@ procedurecontext_free :: proc(procedure_context: ^Procedure_Context) {
 }
 
 foreign context_utils {
-	odin_call :: proc "stdcall" (address: rawptr, #by_ptr ctx: runtime.Context) ---
 	yield :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
 	call :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr, #by_ptr ctx: runtime.Context) ---
 	resume :: proc "stdcall" (procedure_context: ^Procedure_Context, #by_ptr ctx: runtime.Context) ---

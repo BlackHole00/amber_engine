@@ -3,17 +3,9 @@
 ;  - asm: https://web.stanford.edu/class/cs107/resources/x86-64-reference.pdf.
 ;  - stdcall: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
 
-global get_stack_pointer
-global get_location_of_this_instruction
-global get_location_of_next_instruction
-global advanced_jump
-global simple_jump
 global yield
 global call
 global resume
-global create_proceduresnapshot
-global restore_proceduresnapshot
-global odin_call
 
 ; @calling_convention: stdcall
 ; @modified_registers: all
@@ -68,8 +60,8 @@ create_registersnapshot:
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (6 * REGISTER_SIZE)], r14
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (7 * REGISTER_SIZE)], r15
         
-        mov [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)], rdx
-        mov [rcx + RS_REGISTER_STATUSES_OFFSET + (9 * REGISTER_SIZE)], r8
+        mov [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)], rdx ; rip
+        mov [rcx + RS_REGISTER_STATUSES_OFFSET + (9 * REGISTER_SIZE)], r8  ; rsp
         
         movups [rcx + RS_SSE_REGISTER_STATUSES_OFFSET + (0 * XMM_REGISTER_SIZE)], xmm6
         movups [rcx + RS_SSE_REGISTER_STATUSES_OFFSET + (1 * XMM_REGISTER_SIZE)], xmm7
@@ -86,14 +78,14 @@ create_registersnapshot:
 
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: 8 bytes: [0] = stack start
+; @stack: 8 bytes: [0] = stack base
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
 ;          R8  = restore point instruction [nullable]
 ;          R9  = current stack [nullable]
 create_proceduresnapshot:
-        sub rsp, REGISTER_SIZE
-        mov [rsp], rdx
+        sub rsp, REGISTER_SIZE              ; set stack
+        mov [rsp], rdx                      ; stack[0] = stack base
         
         cmp r8, 0                           ; if r8 == 0
         jne setup_register_snapshot         ;     r8 = &&create_proceduresnapshot_restore_point
@@ -101,24 +93,25 @@ create_proceduresnapshot:
         
 setup_register_snapshot:
         ; rcx is the same parameter
-        mov rdx, r8
-        mov r8,  rsp
-        add r8, REGISTER_SIZE ; Account for stack size
+        mov rdx, r8                         ; rdx = restore point instruction
+        mov r8,  rsp                        ; r8 = rsp - REGISTER_SIZE
+        add r8, REGISTER_SIZE               ; Account for stack size
         call create_registersnapshot
+        ; create_registersnapshot(rcx, restore point instruction, rsp - REGISTER_SIZE)
 
-        cmp r9, 0
-        jne setup_stack_snapshot
+        cmp r9, 0                           ; if current stack == 0
+        jne setup_stack_snapshot            ;     r9 = rsp - REGISTER_SIZE
         mov r9, r8
 
 setup_stack_snapshot:
         ; rcx and r8 do not get modified by create_registersnapshot
-        add rcx, PS_STACK_SNAPSHOT_OFFSET
-        mov rdx, [rsp]
-        mov r8, r9
+        add rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx.stack_snapshot
+        mov rdx, [rsp]                      ; rdx = stack[0] (stack base)
+        mov r8, r9                          ; r8 = current stack
         call create_stacksnapshot
+        ; create_stacksnapshot(&rcx.stack_snapshot, stack base, current stack)
         
-        mov rcx, [rsp]
-        add rsp, REGISTER_SIZE
+        add rsp, REGISTER_SIZE              ; restore stack
 
 create_proceduresnapshot_restore_point:
         ret
@@ -127,6 +120,7 @@ create_proceduresnapshot_restore_point:
 ; @modified_registers: rdi, rsi, rbx, rbp, r12, r13, r14, r15, xmm6, xmm7, xmm8,
 ;                      xmm9, xmm10, xmm11, xmm12, xmm13, xmm14, xmm15
 ; @stack: none
+; @note: this procedure does not restore the rsp
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 restore_registersnapshot_and_jump:
         mov rdi, [rcx + RS_REGISTER_STATUSES_OFFSET + (0 * REGISTER_SIZE)]
@@ -163,19 +157,17 @@ restore_registersnapshot_and_jump:
 ;         return
 ;  The stack modification are similar to the ones displayed below:
 ;    Current stack:                         Next stack (M = modified):
-;      |----|                                M|----|
-;      | lr | <- current rsp                 M| lr | <- new rsp [link return]
-;      |----|                                M|----|
-;      | .. |    previous                    M| .. |
-;      | .. | <- procedure(s)                M| .. | <- Stack_Snapshot data
-;      | .. |    data                        M| .. |
+;      | .. | <- base data                    | .. | <- base data
 ;      |----|                                 |----|
 ;      | lr | <- lr to base (stack base)      | lr | <- lr to base (stack base)
 ;      |----|                                 |----|
-;      | .. | <- base data                    | .. | <- base data
+;      | .. |    previous                    M| .. |
+;      | .. | <- procedure(s)                M| .. | <- Stack_Snapshot data
+;      | .. |    data                        M| .. |
+;      |----|                                M|----|
+;     || lr | <- current rsp                |M| lr | <- new rsp [link return]
+;     V|----|                               VM|----|
 ;
-;  TODO(Vicix): This graph should be reversed, since rsp grows torwards the 
-;               bottom
 restore_stacksnapshot:
         mov r9, [rcx + SS_LET_OFFSET]       ; r9  = len(rcx^)
         mov r10, [rcx + SS_DATA_PTR_OFFSET] ; r10 = &rcx^[0]
@@ -196,26 +188,27 @@ memcopy_end:
         mov rsp, rdx                        ; rsp = rdx
         jmp r8                              ; return (stack less)
 
-; TODO(Vicix): Make this work with also stack variables
 ; @calling_convention: stdcall
 ; @modified_registers: all
 ; @stack: none
-; @note: RCX should *not* point to a stack variable since it will be overwritten
+; @note: RCX should *not* point to a stack variable not in the base stack space
+;        since it will be overwritten
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
 ;          R8  = ^runtime.Context
 restore_proceduresnapshot:
-        mov r12, r8
+        mov r12, r8                         ; r12 = ^runtime.Context
 
-        add rcx, PS_STACK_SNAPSHOT_OFFSET
+        add rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx.stack_snapshot
         ; rdx is the same
-        lea r8, [rel restore_proceduresnapshot_after_stack_restoration]
-        jmp restore_stacksnapshot
+        lea r8, [rel restore_proceduresnapshot_after_stack_restoration] ; r8 = &&restore_proceduresnapshot_after_stack_restoration
+        jmp restore_stacksnapshot           ; jmp is stack-less
+        ; restore_stacksnapshot(&rcx.stack_snapshot, stack base, &&restore_proceduresnapshot_after_stack_restoration)
 
 restore_proceduresnapshot_after_stack_restoration:
         ; rcx is not modified by restore_stacksnapshot
-        sub rcx, PS_STACK_SNAPSHOT_OFFSET
-        mov rdx, r8
+        sub rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx
+        mov rdx, r8                         ; rdx = ^runtime.Context
         ; Don't save the link register on the stack
         jmp restore_registersnapshot_and_jump
 
@@ -224,20 +217,27 @@ restore_proceduresnapshot_after_stack_restoration:
 ; @stack: 8 bytes: [0] = ^scheduler.Procedure_Context 
 ; @params: RCX = ^scheduler.Procedure_Context
 yield:
-        sub rsp, REGISTER_SIZE
-        mov [rsp], rcx
+        sub rsp, REGISTER_SIZE              ; setup stack
+        mov [rsp], rcx                      ; stack[0] = rcx
         
         ; rcx is the same
-        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
-        lea r8, [rel yield_restore_point]
-        mov r9, rsp
+        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET] ; rdx = rcx.caller_stack_pointer
+        lea r8, [rel yield_restore_point]               ; r8 = &&yield_restore_point
+        mov r9, rsp                                     ; r9 = rsp + REGISTER_SIZE
         add r9, REGISTER_SIZE
         call create_proceduresnapshot
+        ; create_proceduresnapshot(
+        ;     ^scheduler.Procedure_Context, 
+        ;     rcx.caller_stack_pointer, 
+        ;     &&yield_restore_point, 
+        ;     rsp + REGISTER_SIZE,
+        ; )
 
-        mov rcx, [rsp]
-        mov rsp, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
-        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        mov rcx, [rsp]                      ; rcx = stack[0] (^scheduler.Procedure_Context)
+        mov rsp, [rcx + PC_CALLER_STACK_POINTER_OFFSET] ; rsp = rcx.caller_stack_pointer
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
         jmp restore_registersnapshot_and_jump
+        ; restore_registersnapshot_and_jump(&rcx.caller_register_snapshot, rcx.caller_stack_pointer)
 
 yield_restore_point:
         ret
@@ -249,18 +249,19 @@ yield_restore_point:
 ;          RDX = address of procedure
 ;          R8  = ^runtime.Context
 call:
-        mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp
-        mov r9, rdx
-        mov r10, r8
+        mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp ; rcx.caller_stack_pointer = rsp
+        mov r9, rdx                         ; r9 = address of procedure
+        mov r10, r8                         ; r10 = ^runtime.Context
 
-        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
-        lea rdx, [rel call_restore_point]
-        mov r8, rsp
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
+        lea rdx, [rel call_restore_point]   ; rcx = &&call_restore_point
+        mov r8, rsp                         ; r8 = rsp
         call create_registersnapshot
+        ; create_registersnapshot(&rcx.caller_register_snapshot, &&call_restore_point, rsp)
 
-        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
-        mov rdx, r10
-        jmp r9
+        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = ^scheduler.Procedure_Context
+        mov rdx, r10                        ; rdx = ^runtime.Context
+        jmp r9                              ; jmp address of procedure
 call_restore_point:
         ret
 
@@ -270,77 +271,19 @@ call_restore_point:
 ; @params: RCX = ^scheduler.Procedure_Context
 ;          rdx  = ^runtime.Context
 resume: 
-        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp ; rcx.caller_stack_pointer = rsp
+
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
+        lea rdx, [rel resume_restore_point] ; rdx, &&resume_restore_point
+        mov r8, rsp                         ; r8 = rsp
         call create_registersnapshot
+        ; create_registersnapshot(^scheduler.Procedure_Context, &&resume_restore_point, rsp)
 
-        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
-        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
-        call restore_proceduresnapshot
+        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = ^scheduler.Procedure_Context
+        mov r8, rdx                                 ; r8 = ^runtime.Context
+        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET] ; rdx = rcx.caller_stack_pointer
+        jmp restore_proceduresnapshot
+        ; restore_proceduresnapshot(^scheduler.Procedure_Context, rcx.caller_stack_pointer, ^runtime.Context)
 
-; @calling_convention: none (return value in rax)
-; @modified_registers: rax
-; @stack: none
-; @note: this function in stdcall should not cause anything to be stored in the
-;        stack (thus the stack pointer should be the same as the caller)
-; @return: current stack pointer
-get_stack_pointer:
-        mov rax, rsp
-        add rax, REGISTER_SIZE  ; Account for the link return size as it is also 
-                                ; implicitly stored into the stack when the call 
-                                ; instruction is used
-        ret
-
-; @calling_convention: none (return value in rax)
-; @modified_registers: rax, rcx
-; @stack: none
-; @return: the location of the `call get_location_of_this_function` instruction
-get_location_of_this_instruction:
-        pop rcx ; Since there isn't any argument, the first thing in the stack
-                ; is the link return register (which points to the next 
-                ; instruction is the caller procedure)
-        mov rax, rcx
-        sub rax, SIZE_OF_CALL_INSTRUCTION       ; If the location of the call
-                                                ; instruction is needed we need
-                                                ; to put the instruction
-                                                ; register back to the desired
-                                                ; instruction
-        jmp rcx ; Since rcx is no longer into the stack, it is not possible to
-                ; call ret, so we jump instead.
-
-; @calling_convention: none (return value in rax)
-; @modified_registers: rax
-; @stack: none
-; @note: this procedure gets the address of the next *assembly* instruction,
-;        which is almost always a stack manipulation instruction.
-; @return: the location of the instruction that comes after the `call 
-;          get_location_of_next_instruction`
-get_location_of_next_instruction:
-        pop rax
-        jmp rax
-
-; @calling_convention: stdcall
-; @modified_registers: rsp
-; @stack: none
-; @params: RCX = jump instruction target
-;          RDX = stack pointer target
-advanced_jump:
-        mov rsp, rdx
-        jmp rcx
-
-; @calling_convention: stdcall
-; @modified_registers: rax
-; @stack: none
-; @note: Since this procedure does not manipulate the stack, you should only use
-;        this to jump within the function
-; @params: RCX = jump instruction target
-simple_jump:
-        pop rax ; Pops the link return
-        jmp rcx
-
-odin_call:
-        ; pop rax ; I don't really know why, but this is required
-        xchg rcx, rdx
-        push rsp
-        call rdx
-        pop rsp
+resume_restore_point:
         ret

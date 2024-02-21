@@ -73,6 +73,10 @@ main :: proc() {
 
 		local_var = 42
 		log.infof("After yield: local_var = %d", local_var)
+		hacks.yield(pc)
+
+		local_var = 420
+		log.infof("After second yield: local_var = %d", local_var)
 	}
 
 	pc := hacks.Procedure_Context{}
@@ -80,6 +84,8 @@ main :: proc() {
 
 	log.info("Calling test_proc...")
 	hacks.call(&pc, (rawptr)(test_proc), context)
+	log.info("Resuming test_proc...")
+	hacks.resume(&pc, context)
 	log.info("Resuming test_proc...")
 	hacks.resume(&pc, context)
 	log.info("test_proc returned")
