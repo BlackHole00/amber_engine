@@ -8,16 +8,11 @@ global get_location_of_this_instruction
 global get_location_of_next_instruction
 global advanced_jump
 global simple_jump
-; global yield
-; global restore
+global yield
+global call
+global resume
 global create_proceduresnapshot
 global restore_proceduresnapshot
-global create_proceduresnapshot_restore_point
-
-; ; @calling_convention: stdcall
-; ; @params: RCX = ^scheduler.Procedure_Context,
-; ;          RDX = current stack address
-; extern procedurecontext_save_stack
 
 ; @calling_convention: stdcall
 ; @params: RCX = ^scheduler.Stack_Snapshot
@@ -29,15 +24,6 @@ extern create_stacksnapshot
 REGISTER_SIZE equ 8
 XMM_REGISTER_SIZE equ 16
 
-; Offsets of scheduler.Procedure_Context fields
-; PC_REGISTER_STATUSES_OFFSET equ 0
-; PC_SSE_REGISTER_STATUSES_OFFSET equ (PC_REGISTER_STATUSES_OFFSET + (REGISTER_SIZE * 10))
-; PC_STACK_START_REGISTER_OFFSET equ (PC_SSE_REGISTER_STATUSES_OFFSET + (XMM_REGISTER_SIZE * 10))
-; PC_RETURN_INSTRUCTION_POINTER_OFFSET equ (PC_STACK_START_REGISTER_OFFSET + REGISTER_SIZE)
-; PC_RETURN_STACK_POINTER_OFFSET equ (PC_RETURN_INSTRUCTION_POINTER_OFFSET + REGISTER_SIZE)
-; PC_STACK_DATA_PTR_OFFSET equ (PC_RETURN_STACK_POINTER_OFFSET + REGISTER_SIZE)
-; PC_STACK_LEN_OFFSET equ (PC_STACK_DATA_PTR_OFFSET + REGISTER_SIZE)
-
 ; Offsets of scheduler.Register_Snapshot
 RS_REGISTER_STATUSES_OFFSET equ 0
 RS_SSE_REGISTER_STATUSES_OFFSET equ (RS_REGISTER_STATUSES_OFFSET + (REGISTER_SIZE * 10))
@@ -46,10 +32,18 @@ RS_SIZE equ (RS_SSE_REGISTER_STATUSES_OFFSET + (XMM_REGISTER_SIZE * 10))
 ; Offsets of scheduler.Stack_Snapshot
 SS_DATA_PTR_OFFSET equ 0
 SS_LET_OFFSET equ (SS_DATA_PTR_OFFSET + REGISTER_SIZE)
+SS_SIZE equ (SS_LET_OFFSET + REGISTER_SIZE)
 
 ; Offsets of scheduler.Procedure_Snapshot
 PS_REGISTER_SNAPSHOT_OFFSET equ 0
 PS_STACK_SNAPSHOT_OFFSET equ (PS_REGISTER_SNAPSHOT_OFFSET + RS_SIZE)
+PS_SIZE equ (RS_SIZE + SS_SIZE)
+
+; Offsets of scheduler.Procedure_Context
+PC_CALLEE_SNAPSHOT_OFFSET equ 0
+PC_CALLER_REGISTER_SNAPSHOT_OFFSET equ (PC_CALLEE_SNAPSHOT_OFFSET + PS_SIZE)
+PC_CALLER_STACK_POINTER_OFFSET equ (PC_CALLER_REGISTER_SNAPSHOT_OFFSET + RS_SIZE)
+PC_SIZE equ (PC_CALLER_STACK_POINTER_OFFSET + REGISTER_SIZE)
 
 ; Other
 SIZE_OF_CALL_INSTRUCTION equ 12
@@ -70,6 +64,7 @@ create_registersnapshot:
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (5 * REGISTER_SIZE)], r13
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (6 * REGISTER_SIZE)], r14
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (7 * REGISTER_SIZE)], r15
+        
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)], rdx
         mov [rcx + RS_REGISTER_STATUSES_OFFSET + (9 * REGISTER_SIZE)], r8
         
@@ -89,24 +84,36 @@ create_registersnapshot:
 ; @calling_convention: stdcall
 ; @stack: 8 bytes: [0] = stack start
 ; @params: RCX = ^scheduler.Procedure_Snapshot
-;          RDX = stack start
+;          RDX = stack base
 ;          R8  = restore point instruction [nullable]
+;          R9  = current stack [nullable]
 create_proceduresnapshot:
         sub rsp, REGISTER_SIZE
         mov [rsp], rdx
         
+        cmp r8, 0                           ; if r8 == 0
+        jne setup_register_snapshot         ;     r8 = &&create_proceduresnapshot_restore_point
+        lea r8, [rel create_proceduresnapshot_restore_point]
+        
+setup_register_snapshot:
         ; rcx is the same parameter
-        lea rdx, [rel create_proceduresnapshot_restore_point]
+        mov rdx, r8
         mov r8,  rsp
         add r8, REGISTER_SIZE ; Account for stack size
         call create_registersnapshot
 
+        cmp r9, 0
+        jne setup_stack_snapshot
+        mov r9, r8
+
+setup_stack_snapshot:
         ; rcx and r8 do not get modified by create_registersnapshot
         add rcx, PS_STACK_SNAPSHOT_OFFSET
         mov rdx, [rsp]
-        ; r8 is the same parameter
+        mov r8, r9
         call create_stacksnapshot
         
+        mov rcx, [rsp]
         add rsp, REGISTER_SIZE
 
 create_proceduresnapshot_restore_point:
@@ -123,7 +130,6 @@ restore_registersnapshot_and_jump:
         mov r13, [rcx + RS_REGISTER_STATUSES_OFFSET + (5 * REGISTER_SIZE)]
         mov r14, [rcx + RS_REGISTER_STATUSES_OFFSET + (6 * REGISTER_SIZE)]
         mov r15, [rcx + RS_REGISTER_STATUSES_OFFSET + (7 * REGISTER_SIZE)]
-        ; mov rsp, [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)]
         
         movups xmm6, [rcx + RS_SSE_REGISTER_STATUSES_OFFSET + (0 * XMM_REGISTER_SIZE)]
         movups xmm7, [rcx + RS_SSE_REGISTER_STATUSES_OFFSET + (1 * XMM_REGISTER_SIZE)]
@@ -198,7 +204,52 @@ restore_proceduresnapshot_after_stack_restoration:
 ; @calling_convention: stdcall
 ; @params: RCX = ^scheduler.Procedure_Context
 yield:
+        sub rsp, REGISTER_SIZE
+        mov [rsp], rcx
         
+        ; rcx is the same
+        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
+        lea r8, [rel yield_restore_point]
+        mov r9, rsp
+        add r9, REGISTER_SIZE
+        call create_proceduresnapshot
+
+        mov rcx, [rsp]
+        mov rsp, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        jmp restore_registersnapshot_and_jump
+
+yield_restore_point:
+        ret
+
+; @calling_convention: stdcall
+; @params: RCX = ^scheduler.Procedure_Context
+;          RDX = address of procedure
+call:
+        mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp
+        mov r9, rdx
+
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        lea rdx, [rel call_restore_point]
+        mov r8, rsp
+        call create_registersnapshot
+
+        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+
+        mov rdx, r9
+        jmp rdx
+call_restore_point:
+        ret
+
+; @calling_convention: stdcall
+; @params: RCX = ^scheduler.Procedure_Context
+resume: 
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        call create_registersnapshot
+
+        sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
+        mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
+        call restore_proceduresnapshot
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

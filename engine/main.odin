@@ -27,18 +27,6 @@ _ :: time
 _ :: namespace_manager
 _ :: type_manager
 
-loop_hackery :: proc() {
-	instruction_pointer := hacks.get_location_of_this_instruction()
-	initial_stack_pointer := hacks.get_stack_pointer()
-
-	// context = common.default_context()
-
-	log_instruction := hacks.get_location_of_this_instruction()
-	log.infof("Wow, %x %x %x", instruction_pointer, initial_stack_pointer, log_instruction)
-
-	hacks.simple_jump(log_instruction)
-}
-
 main :: proc() {
 	// instruction_pointer := hacks.get_location_of_this_instruction()
 	// initial_stack_pointer := hacks.get_stack_pointer()
@@ -77,51 +65,31 @@ main :: proc() {
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
 
-	ps := new(hacks.Procedure_Snapshot)
+	test_proc :: proc "c" (pc: ^hacks.Procedure_Context) {
+		context = common.default_context()
+		local_var := 0
 
-	already_restored := false
+		log.infof("Before yield: local_var = %d", local_var)
+		hacks.yield(pc)
 
-	wow :: proc(ps: ^hacks.Procedure_Snapshot, stack_base: uintptr) {
-		nested_wow :: proc(ps: ^hacks.Procedure_Snapshot, stack_base: uintptr) -> int {
-			stack_variable := 42
-			stack_variable += 3
-
-			hacks.create_proceduresnapshot(ps, stack_base)
-
-			return stack_variable
-		}
-
-		stack_variable := 42
-
-		log.infof("Before snapshot")
-
-		stack_variable += nested_wow(ps, stack_base)
-
-		log.infof("Current stack_variable %d", stack_variable)
+		local_var = 42
+		log.infof("After yield: local_var = %d", local_var)
 	}
 
-	main_stack_pointer := hacks.get_stack_pointer()
-	instruction := hacks.get_location_of_next_instruction()
-	log.infof("Main:")
-	log.infof("\tstack pointer: %x", main_stack_pointer)
-	log.infof("\texaple instruction: %x", instruction)
-	log.infof("Wow address: %x", transmute(uintptr)(wow))
+	pc := hacks.Procedure_Context{}
+	defer hacks.procedurecontext_free(&pc)
 
-	wow(ps, main_stack_pointer)
+	log.info("Calling test_proc...")
+	hacks.call(&pc, (rawptr)(test_proc))
+	log.info("resuming test_proc...")
+	hacks.resume(&pc)
 
-	if !already_restored {
-		log.infof("Restoring... %x", ps.registers.register_statuses[.Rip])
+	// log.infof("Initialized engine")
 
-		already_restored = true
-		hacks.restore_proceduresnapshot(ps, main_stack_pointer)
-	}
+	// log.infof("Loading mods...")
+	// loader.modmanager_queue_load_folder(&globals.mod_manager, globals.config.mods_location)
+	// loader.modmanager_force_load_queued_mods(&globals.mod_manager)
 
-	log.infof("Initialized engine")
-
-	log.infof("Loading mods...")
-	loader.modmanager_queue_load_folder(&globals.mod_manager, globals.config.mods_location)
-	loader.modmanager_force_load_queued_mods(&globals.mod_manager)
-
-	log.infof("Deinitializing engine...")
+	// log.infof("Deinitializing engine...")
 }
 
