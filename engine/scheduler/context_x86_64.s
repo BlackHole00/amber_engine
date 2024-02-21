@@ -13,8 +13,10 @@ global call
 global resume
 global create_proceduresnapshot
 global restore_proceduresnapshot
+global odin_call
 
 ; @calling_convention: stdcall
+; @modified_registers: all
 ; @params: RCX = ^scheduler.Stack_Snapshot
 ;          RDX = stack end
 ;          R8  = current stack
@@ -52,6 +54,7 @@ section .text
 
 ; @calling_convention: stdcall
 ; @modified_registers: none
+; @stack: none
 ; @params: RCX = ^scheduler.Register_Snapshot
 ;          RDX = instruction register
 ;          r8  = stack pointer
@@ -82,6 +85,7 @@ create_registersnapshot:
         ret
 
 ; @calling_convention: stdcall
+; @modified_registers: all
 ; @stack: 8 bytes: [0] = stack start
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
@@ -120,6 +124,9 @@ create_proceduresnapshot_restore_point:
         ret
 
 ; @calling_convention: stdcall
+; @modified_registers: rdi, rsi, rbx, rbp, r12, r13, r14, r15, xmm6, xmm7, xmm8,
+;                      xmm9, xmm10, xmm11, xmm12, xmm13, xmm14, xmm15
+; @stack: none
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 restore_registersnapshot_and_jump:
         mov rdi, [rcx + RS_REGISTER_STATUSES_OFFSET + (0 * REGISTER_SIZE)]
@@ -145,25 +152,30 @@ restore_registersnapshot_and_jump:
         jmp [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)]
 
 ; @calling_convention: stdcall
-; @dirty_registers: rdx, r8, r9, r10
+; @modified_registers: rdx, r8, r9, r10, r11, rsp
+; @stack: none
 ; @params: RCX = ^scheduler.Stack_Snapshot
 ;          RDX = stack base
 ;          R8  = link return
-; @notes:
+; @notes: The link return parameter (r8 register) is used as the return address:
+;         since the stack gets modified in this procedure, it might not contain
+;         the link return address in the stack, thus it need a custom way to
+;         return
+;  The stack modification are similar to the ones displayed below:
+;    Current stack:                         Next stack (M = modified):
+;      |----|                                M|----|
+;      | lr | <- current rsp                 M| lr | <- new rsp [link return]
+;      |----|                                M|----|
+;      | .. |    previous                    M| .. |
+;      | .. | <- procedure(s)                M| .. | <- Stack_Snapshot data
+;      | .. |    data                        M| .. |
+;      |----|                                 |----|
+;      | lr | <- lr to base (stack base)      | lr | <- lr to base (stack base)
+;      |----|                                 |----|
+;      | .. | <- base data                    | .. | <- base data
+;
 ;  TODO(Vicix): This graph should be reversed, since rsp grows torwards the 
 ;               bottom
-;  Current stack:                           Next stack (M = modified):
-;    |----|                                  M|----|
-;    | lr | <- current rsp                   M| lr | <- new rsp [link return]
-;    |----|                                  M|----|
-;    | .. |    previous                      M| .. |
-;    | .. | <- procedure(s)                  M| .. | <- Stack_Snapshot data
-;    | .. |    data                          M| .. |
-;    |----|                                   |----|
-;    | lr | <- lr to base (stack base)        | lr | <- lr to base (stack base)
-;    |----|                                   |----|
-;    | .. | <- base data                      | .. | <- base data
-;
 restore_stacksnapshot:
         mov r9, [rcx + SS_LET_OFFSET]       ; r9  = len(rcx^)
         mov r10, [rcx + SS_DATA_PTR_OFFSET] ; r10 = &rcx^[0]
@@ -186,10 +198,15 @@ memcopy_end:
 
 ; TODO(Vicix): Make this work with also stack variables
 ; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: none
 ; @note: RCX should *not* point to a stack variable since it will be overwritten
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
+;          R8  = ^runtime.Context
 restore_proceduresnapshot:
+        mov r12, r8
+
         add rcx, PS_STACK_SNAPSHOT_OFFSET
         ; rdx is the same
         lea r8, [rel restore_proceduresnapshot_after_stack_restoration]
@@ -198,10 +215,13 @@ restore_proceduresnapshot:
 restore_proceduresnapshot_after_stack_restoration:
         ; rcx is not modified by restore_stacksnapshot
         sub rcx, PS_STACK_SNAPSHOT_OFFSET
+        mov rdx, r8
         ; Don't save the link register on the stack
         jmp restore_registersnapshot_and_jump
 
 ; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: 8 bytes: [0] = ^scheduler.Procedure_Context 
 ; @params: RCX = ^scheduler.Procedure_Context
 yield:
         sub rsp, REGISTER_SIZE
@@ -223,11 +243,15 @@ yield_restore_point:
         ret
 
 ; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: none
 ; @params: RCX = ^scheduler.Procedure_Context
 ;          RDX = address of procedure
+;          R8  = ^runtime.Context
 call:
         mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp
         mov r9, rdx
+        mov r10, r8
 
         add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
         lea rdx, [rel call_restore_point]
@@ -235,14 +259,16 @@ call:
         call create_registersnapshot
 
         sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
-
-        mov rdx, r9
-        jmp rdx
+        mov rdx, r10
+        jmp r9
 call_restore_point:
         ret
 
 ; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: none
 ; @params: RCX = ^scheduler.Procedure_Context
+;          rdx  = ^runtime.Context
 resume: 
         add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET
         call create_registersnapshot
@@ -251,9 +277,9 @@ resume:
         mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET]
         call restore_proceduresnapshot
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-; @calling_convention: none
+; @calling_convention: none (return value in rax)
+; @modified_registers: rax
+; @stack: none
 ; @note: this function in stdcall should not cause anything to be stored in the
 ;        stack (thus the stack pointer should be the same as the caller)
 ; @return: current stack pointer
@@ -264,7 +290,9 @@ get_stack_pointer:
                                 ; instruction is used
         ret
 
-; @calling_convention: none
+; @calling_convention: none (return value in rax)
+; @modified_registers: rax, rcx
+; @stack: none
 ; @return: the location of the `call get_location_of_this_function` instruction
 get_location_of_this_instruction:
         pop rcx ; Since there isn't any argument, the first thing in the stack
@@ -279,7 +307,9 @@ get_location_of_this_instruction:
         jmp rcx ; Since rcx is no longer into the stack, it is not possible to
                 ; call ret, so we jump instead.
 
-; @calling_convention: none
+; @calling_convention: none (return value in rax)
+; @modified_registers: rax
+; @stack: none
 ; @note: this procedure gets the address of the next *assembly* instruction,
 ;        which is almost always a stack manipulation instruction.
 ; @return: the location of the instruction that comes after the `call 
@@ -289,6 +319,8 @@ get_location_of_next_instruction:
         jmp rax
 
 ; @calling_convention: stdcall
+; @modified_registers: rsp
+; @stack: none
 ; @params: RCX = jump instruction target
 ;          RDX = stack pointer target
 advanced_jump:
@@ -296,10 +328,19 @@ advanced_jump:
         jmp rcx
 
 ; @calling_convention: stdcall
+; @modified_registers: rax
+; @stack: none
 ; @note: Since this procedure does not manipulate the stack, you should only use
 ;        this to jump within the function
 ; @params: RCX = jump instruction target
 simple_jump:
         pop rax ; Pops the link return
         jmp rcx
-                
+
+odin_call:
+        ; pop rax ; I don't really know why, but this is required
+        xchg rcx, rdx
+        push rsp
+        call rdx
+        pop rsp
+        ret

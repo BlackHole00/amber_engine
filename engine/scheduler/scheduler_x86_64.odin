@@ -1,5 +1,6 @@
 package amber_engine_scheduler
 
+import "base:runtime"
 import "core:mem"
 import "engine:common"
 
@@ -60,27 +61,14 @@ create_stacksnapshot :: proc "stdcall" (
 ) {
 	context = common.default_context()
 
-	used_stack_size := (int)(stack_base - current_stack)
-	// log.infof("Copying stack: %x %x (%d bytes)", stack_base, current_stack, used_stack_size)
-	// log.infof(
-	// 	"Will copy from %x to %x (inclusive)",
-	// 	current_stack,
-	// 	current_stack + (uintptr)(used_stack_size - 8),
-	// )
-	// log.infof("Detected main link return: %16x", (transmute(^uintptr)(stack_base - 8))^)
-	// log.infof("Detected first link return: %16x", (transmute(^uintptr)(current_stack))^)
-
 	if stack_snapshot^ != nil {
 		delete(stack_snapshot^)
 	}
 
+	used_stack_size := (int)(stack_base - current_stack)
+
 	stack_snapshot^ = make([]byte, used_stack_size)
 	mem.copy_non_overlapping(&stack_snapshot^[0], (rawptr)(current_stack), used_stack_size)
-
-	// log.infof(
-	// 	"Copyied link return: %16x",
-	// 	mem.slice_data_cast([]uintptr, stack_snapshot^)[used_stack_size / 8 - 1],
-	// )
 }
 
 @(private)
@@ -94,22 +82,9 @@ procedurecontext_free :: proc(procedure_context: ^Procedure_Context) {
 }
 
 foreign context_utils {
-	@(private)
-	get_stack_pointer :: proc "none" () -> uintptr ---
-	@(private)
-	get_location_of_this_instruction :: proc "none" () -> uintptr ---
-	@(private)
-	get_location_of_next_instruction :: proc "none" () -> uintptr ---
-	@(private)
-	advanced_jump :: proc "stdcall" (jmp_target: uintptr, stack_pointer_target: uintptr) ---
-	@(private)
-	simple_jump :: proc "stdcall" (jmp_target: uintptr) ---
-	@(private)
-	create_proceduresnapshot :: proc "stdcall" (snapshot: ^Procedure_Snapshot, stack_base: uintptr, return_instruction: uintptr = 0, current_stack: uintptr = 0) ---
-	@(private)
-	restore_proceduresnapshot :: proc "stdcall" (snapshot: ^Procedure_Snapshot, stack_base: uintptr) ---
+	odin_call :: proc "stdcall" (address: rawptr, #by_ptr ctx: runtime.Context) ---
 	yield :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
-	call :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr) ---
-	resume :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
+	call :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr, #by_ptr ctx: runtime.Context) ---
+	resume :: proc "stdcall" (procedure_context: ^Procedure_Context, #by_ptr ctx: runtime.Context) ---
 }
 

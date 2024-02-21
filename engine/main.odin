@@ -65,8 +65,7 @@ main :: proc() {
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
 
-	test_proc :: proc "c" (pc: ^hacks.Procedure_Context) {
-		context = common.default_context()
+	test_proc :: proc(pc: ^hacks.Procedure_Context) {
 		local_var := 0
 
 		log.infof("Before yield: local_var = %d", local_var)
@@ -80,9 +79,34 @@ main :: proc() {
 	defer hacks.procedurecontext_free(&pc)
 
 	log.info("Calling test_proc...")
-	hacks.call(&pc, (rawptr)(test_proc))
-	log.info("resuming test_proc...")
-	hacks.resume(&pc)
+	hacks.call(&pc, (rawptr)(test_proc), context)
+	log.info("Resuming test_proc...")
+	hacks.resume(&pc, context)
+	log.info("test_proc returned")
+
+	test_proc2 :: proc "c" (pc: ^hacks.Procedure_Context) {
+		yield_in_sub_proc :: proc "c" (pc: ^hacks.Procedure_Context) -> int {
+			hacks.yield(pc)
+
+			return 42
+		}
+
+		context = common.default_context()
+		local_var := 0
+
+		log.infof("Before yield in sub proc: local_var = %d", local_var)
+
+		local_var = yield_in_sub_proc(pc)
+		log.infof("After yield in sub proc: local_var = %d", local_var)
+	}
+
+	pc2 := hacks.Procedure_Context{}
+	defer hacks.procedurecontext_free(&pc2)
+
+	log.info("Calling test_proc2...")
+	hacks.call(&pc2, (rawptr)(test_proc2), context)
+	log.info("Resuming test_proc2...")
+	hacks.resume(&pc2, context)
 
 	// log.infof("Initialized engine")
 
