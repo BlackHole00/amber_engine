@@ -9,7 +9,7 @@ import "engine:globals"
 import "engine:interface"
 import "engine:loader"
 import "engine:namespace_manager"
-import hacks "engine:scheduler"
+import hacks "engine:scheduler/utils"
 import "engine:storage"
 import "engine:type_manager"
 import aec "shared:ae_common"
@@ -65,31 +65,27 @@ main :: proc() {
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
 
-	test_proc :: proc(task: ^hacks.Task) {
+	test_proc :: proc(task: ^hacks.Procedure_Context) {
 		log.info("Hello world with task")
 		defer log.infof("deferred")
 
-		return_val: int = 42
-		hacks.task_yield(task, return_val)
+		// return_val: int = 42
+		hacks.yield(task)
 
-		return_val = 43
-		hacks.task_yield(task, return_val)
+		// return_val = 43
+		hacks.yield(task)
 
-		return_val = 44
-		hacks.task_return(task, return_val)
+		// return_val = 44
+		// hacks.return(task)
 	}
 
-	task := hacks.Task {
-		task_context = context,
-	}
-	defer hacks.task_free(&task)
+	task := hacks.Procedure_Context{}
+	defer hacks.procedurecontext_free(&task)
 
-	hacks.task_call(&task, test_proc)
-	log.infof("Task yielded: %d", hacks.task_returned_value(int, &task)^)
-	hacks.task_resume(&task)
-	log.infof("Task yielded: %d", hacks.task_returned_value(int, &task)^)
-	hacks.task_resume(&task)
-	log.infof("Task returned: %d", hacks.task_returned_value(int, &task)^)
+	ctx := common.default_context()
+	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
+	hacks.resume(&task)
+	hacks.resume(&task)
 	// hacks.call(nil, main)
 
 	// test_proc :: proc(pc: ^hacks.Procedure_Context) {

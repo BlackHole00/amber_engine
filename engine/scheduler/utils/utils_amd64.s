@@ -1,6 +1,4 @@
-; TODO(Vicix): Find better reference with intel syntax
 ; References:
-;  - asm: https://web.stanford.edu/class/cs107/resources/x86-64-reference.pdf.
 ;  - stdcall: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
 
 global procedurecontext_yield
