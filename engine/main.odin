@@ -65,54 +65,57 @@ main :: proc() {
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
 
-	test_proc :: proc(pc: ^hacks.Procedure_Context) {
-		local_var := 0
+	test_proc :: proc(task: ^hacks.Task) {
+		log.info("Hello world with task")
+		defer log.infof("deferred")
 
-		log.infof("Before yield: local_var = %d", local_var)
-		hacks.yield(pc)
+		return_val: int = 42
+		hacks.task_yield(task, return_val)
 
-		local_var = 42
-		log.infof("After yield: local_var = %d", local_var)
-		hacks.yield(pc)
+		return_val = 43
+		hacks.task_yield(task, return_val)
 
-		local_var = 420
-		log.infof("After second yield: local_var = %d", local_var)
+		return_val = 44
+		hacks.task_return(task, return_val)
 	}
 
-	pc := hacks.Procedure_Context{}
-	defer hacks.procedurecontext_free(&pc)
-
-	log.info("Calling test_proc...")
-	hacks.call(&pc, (rawptr)(test_proc), context)
-	log.info("Resuming test_proc...")
-	hacks.resume(&pc, context)
-	log.info("Resuming test_proc...")
-	hacks.resume(&pc, context)
-	log.info("test_proc returned")
-
-	test_proc2 :: proc "c" (pc: ^hacks.Procedure_Context) {
-		yield_in_sub_proc :: proc "c" (pc: ^hacks.Procedure_Context) -> int {
-			hacks.yield(pc)
-
-			return 42
-		}
-
-		context = common.default_context()
-		local_var := 0
-
-		log.infof("Before yield in sub proc: local_var = %d", local_var)
-
-		local_var = yield_in_sub_proc(pc)
-		log.infof("After yield in sub proc: local_var = %d", local_var)
+	task := hacks.Task {
+		task_context = context,
 	}
+	defer hacks.task_free(&task)
 
-	pc2 := hacks.Procedure_Context{}
-	defer hacks.procedurecontext_free(&pc2)
+	hacks.task_call(&task, test_proc)
+	log.infof("Task yielded: %d", hacks.task_returned_value(int, &task)^)
+	hacks.task_resume(&task)
+	log.infof("Task yielded: %d", hacks.task_returned_value(int, &task)^)
+	hacks.task_resume(&task)
+	log.infof("Task returned: %d", hacks.task_returned_value(int, &task)^)
+	// hacks.call(nil, main)
 
-	log.info("Calling test_proc2...")
-	hacks.call(&pc2, (rawptr)(test_proc2), context)
-	log.info("Resuming test_proc2...")
-	hacks.resume(&pc2, context)
+	// test_proc :: proc(pc: ^hacks.Procedure_Context) {
+	// 	local_var := 0
+
+	// 	log.infof("Before yield: local_var = %d", local_var)
+	// 	hacks.yield(pc)
+
+	// 	local_var = 42
+	// 	log.infof("After yield: local_var = %d", local_var)
+	// 	hacks.yield(pc)
+
+	// 	local_var = 420
+	// 	log.infof("After second yield: local_var = %d", local_var)
+	// }
+
+	// pc := hacks.Procedure_Context{}
+	// defer hacks.procedurecontext_free(&pc)
+
+	// log.info("Calling test_proc...")
+	// hacks.call(&pc, (rawptr)(test_proc), context)
+	// log.info("Resuming test_proc...")
+	// hacks.resume(&pc, context)
+	// log.info("Resuming test_proc...")
+	// hacks.resume(&pc, context)
+	// log.info("test_proc returned")
 
 	// log.infof("Initialized engine")
 

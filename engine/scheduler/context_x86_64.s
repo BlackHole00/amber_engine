@@ -3,9 +3,10 @@
 ;  - asm: https://web.stanford.edu/class/cs107/resources/x86-64-reference.pdf.
 ;  - stdcall: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
 
-global yield
-global call
-global resume
+global procedurecontext_yield
+global procedurecontext_call
+global procedurecontext_resume
+global procedurecontext_force_return
 
 ; @calling_convention: stdcall
 ; @modified_registers: all
@@ -195,9 +196,7 @@ memcopy_end:
 ;        since it will be overwritten
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
-;          R8  = ^runtime.Context
 restore_proceduresnapshot:
-        mov r12, r8                         ; r12 = ^runtime.Context
 
         add rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx.stack_snapshot
         ; rdx is the same
@@ -208,7 +207,6 @@ restore_proceduresnapshot:
 restore_proceduresnapshot_after_stack_restoration:
         ; rcx is not modified by restore_stacksnapshot
         sub rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx
-        mov rdx, r8                         ; rdx = ^runtime.Context
         ; Don't save the link register on the stack
         jmp restore_registersnapshot_and_jump
 
@@ -216,7 +214,7 @@ restore_proceduresnapshot_after_stack_restoration:
 ; @modified_registers: all
 ; @stack: 8 bytes: [0] = ^scheduler.Procedure_Context 
 ; @params: RCX = ^scheduler.Procedure_Context
-yield:
+procedurecontext_yield:
         sub rsp, REGISTER_SIZE              ; setup stack
         mov [rsp], rcx                      ; stack[0] = rcx
         
@@ -248,7 +246,7 @@ yield_restore_point:
 ; @params: RCX = ^scheduler.Procedure_Context
 ;          RDX = address of procedure
 ;          R8  = ^runtime.Context
-call:
+procedurecontext_call:
         mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp ; rcx.caller_stack_pointer = rsp
         mov r9, rdx                         ; r9 = address of procedure
         mov r10, r8                         ; r10 = ^runtime.Context
@@ -269,8 +267,7 @@ call_restore_point:
 ; @modified_registers: all
 ; @stack: none
 ; @params: RCX = ^scheduler.Procedure_Context
-;          rdx  = ^runtime.Context
-resume: 
+procedurecontext_resume: 
         mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp ; rcx.caller_stack_pointer = rsp
 
         add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
@@ -280,10 +277,20 @@ resume:
         ; create_registersnapshot(^scheduler.Procedure_Context, &&resume_restore_point, rsp)
 
         sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = ^scheduler.Procedure_Context
-        mov r8, rdx                                 ; r8 = ^runtime.Context
         mov rdx, [rcx + PC_CALLER_STACK_POINTER_OFFSET] ; rdx = rcx.caller_stack_pointer
         jmp restore_proceduresnapshot
-        ; restore_proceduresnapshot(^scheduler.Procedure_Context, rcx.caller_stack_pointer, ^runtime.Context)
+        ; restore_proceduresnapshot(^scheduler.Procedure_Context, rcx.caller_stack_pointer)
 
 resume_restore_point:
         ret
+
+
+; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: none
+; @params: RCX = ^scheduler.Procedure_Context
+procedurecontext_force_return:
+        mov rsp, [rcx + PC_CALLER_STACK_POINTER_OFFSET] ; rsp = rcx.caller_stack_pointer
+        add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
+        jmp restore_registersnapshot_and_jump
+     
