@@ -105,7 +105,7 @@ foreign context_utils {
 	@(private)
 	procedurecontext_yield :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
 	@(private)
-	procedurecontext_call :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr, ctx: ^runtime.Context) ---
+	procedurecontext_call :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr, task: ^Task, ctx: ^runtime.Context) ---
 	@(private)
 	procedurecontext_resume :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
 	@(private)
@@ -119,8 +119,7 @@ task_call :: #force_inline proc(
 	intrinsics.type_proc_parameter_count(T) == 1 &&
 	intrinsics.type_proc_parameter_type(T, 0) == ^Task &&
 	intrinsics.type_proc_return_count(T) == 0 {
-	// NOTE(Vicix): task == &task.procedure_context
-	procedurecontext_call(&task.procedure_context, (rawptr)(procedure), &task.task_context)
+	procedurecontext_call(&task.procedure_context, (rawptr)(procedure), task, &task.task_context)
 }
 
 @(private)

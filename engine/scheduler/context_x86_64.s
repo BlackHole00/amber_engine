@@ -197,7 +197,6 @@ memcopy_end:
 ; @params: RCX = ^scheduler.Procedure_Snapshot
 ;          RDX = stack base
 restore_proceduresnapshot:
-
         add rcx, PS_STACK_SNAPSHOT_OFFSET   ; rcx = &rcx.stack_snapshot
         ; rdx is the same
         lea r8, [rel restore_proceduresnapshot_after_stack_restoration] ; r8 = &&restore_proceduresnapshot_after_stack_restoration
@@ -245,11 +244,12 @@ yield_restore_point:
 ; @stack: none
 ; @params: RCX = ^scheduler.Procedure_Context
 ;          RDX = address of procedure
-;          R8  = ^runtime.Context
+;          R8  = ^scheduler.Task
+;          R9  = ^runtime.Context
 procedurecontext_call:
         mov [rcx + PC_CALLER_STACK_POINTER_OFFSET], rsp ; rcx.caller_stack_pointer = rsp
-        mov r9, rdx                         ; r9 = address of procedure
-        mov r10, r8                         ; r10 = ^runtime.Context
+        mov r10, rdx                        ; r10 = address of procedure
+        mov r11, r8                         ; r11 = ^runtime.Context
 
         add rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = &rcx.caller_register_snapshot
         lea rdx, [rel call_restore_point]   ; rcx = &&call_restore_point
@@ -258,8 +258,11 @@ procedurecontext_call:
         ; create_registersnapshot(&rcx.caller_register_snapshot, &&call_restore_point, rsp)
 
         sub rcx, PC_CALLER_REGISTER_SNAPSHOT_OFFSET ; rcx = ^scheduler.Procedure_Context
-        mov rdx, r10                        ; rdx = ^runtime.Context
-        jmp r9                              ; jmp address of procedure
+        mov rdx, r9                          ; rdx = ^scheduler.Task
+        mov r8, r10                          ; r8 = ^runtime.Context
+        jmp r10                              ; jmp address of procedure
+        ; prodecure(^scheduler.Task, ^runtime.Context)
+        
 call_restore_point:
         ret
 
