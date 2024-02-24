@@ -5,7 +5,7 @@ import "base:runtime"
 import "core:mem"
 import "engine:common"
 
-@(private)
+// @(private)
 _Procedure_Context :: struct {
 	callee_snapshot:           Procedure_Snapshot,
 	caller_registers_snapshot: Register_Snapshot,

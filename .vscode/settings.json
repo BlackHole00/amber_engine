@@ -1,3 +1,7 @@
 {
-    "memory-view.showMemoryPanel": true
+    "memory-view.showMemoryPanel": true,
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "always",
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "commands"
 }

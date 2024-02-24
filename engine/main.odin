@@ -28,9 +28,6 @@ _ :: namespace_manager
 _ :: type_manager
 
 main :: proc() {
-	// instruction_pointer := hacks.get_location_of_this_instruction()
-	// initial_stack_pointer := hacks.get_stack_pointer()
-
 	context = common.default_context()
 	defer common.default_context_deinit()
 
@@ -66,27 +63,69 @@ main :: proc() {
 	defer storage.storage_free(globals.storage)
 
 	test_proc :: proc(task: ^hacks.Procedure_Context) {
+		// context = common.default_context()
+		
+		log.info("%v", task)
+
 		log.info("Hello world with task")
-		defer log.infof("deferred")
+		// defer log.infof("deferred")
 
 		// return_val: int = 42
-		hacks.yield(task)
+		log.infof(
+			"Will return to: %x (and will thus jump to %x)", 
+			task.caller_registers.register_statuses[.Ip], 
+			task.caller_registers.register_statuses[.Lr],
+		)
+		// hacks._force_return(task)
+		hacks._yield(task)
 
+		log.infof("Resumed task")
 		// return_val = 43
-		hacks.yield(task)
+		hacks._yield(task)
 
+		log.infof("Resumed task")
 		// return_val = 44
 		// hacks.return(task)
+
+		// hacks._force_return(task)
 	}
+
+	log.infof("Test_Proc address: %x", transmute(uintptr)(test_proc))
+	log.infof("Main address: %x", transmute(uintptr)(main))
+	log.infof("_yield address: %x", transmute(uintptr)(hacks._yield))
+	log.infof("_call address: %x", transmute(uintptr)(hacks._call))
+	log.infof("_resume address: %x", transmute(uintptr)(hacks._resume))
 
 	task := hacks.Procedure_Context{}
 	defer hacks.procedurecontext_free(&task)
 
+	log.infof("Task address: %x", transmute(uintptr)(&task))
+	log.infof("Task callee snapshot address %x", transmute(uintptr)(&task.callee_snapshot))
+	log.infof("Task callee register snapshot address %x", transmute(uintptr)(&task.callee_snapshot.register_snapshot))
+	log.infof("Task callee stack snapshot address %x", transmute(uintptr)(&task.callee_snapshot.stack_snapshot))
+	log.infof("Task caller registers address %x", transmute(uintptr)(&task.caller_registers))
+	log.infof("Task ip address %x", transmute(uintptr)(&task.callee_snapshot.register_snapshot.register_statuses[.Ip]))
+
 	ctx := common.default_context()
-	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
-	hacks.resume(&task)
-	hacks.resume(&task)
-	// hacks.call(nil, main)
+	hacks._call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
+	
+	log.infof("Resumed main")
+	log.infof(
+		"Will resume to: %x (and will thus jump to %x)", 
+		task.callee_snapshot.register_snapshot.register_statuses[.Ip], 
+		task.callee_snapshot.register_snapshot.register_statuses[.Lr],
+	)
+	hacks._resume(&task)
+
+	log.infof("Resumed main")
+	log.infof(
+		"Will resume to: %x (and will thus jump to %x)", 
+		task.callee_snapshot.register_snapshot.register_statuses[.Ip], 
+		task.callee_snapshot.register_snapshot.register_statuses[.Lr],
+	)
+	hacks._resume(&task)
+
+	log.infof("Returned main")
 
 	// test_proc :: proc(pc: ^hacks.Procedure_Context) {
 	// 	local_var := 0
