@@ -63,31 +63,30 @@ main :: proc() {
 	defer storage.storage_free(globals.storage)
 
 	test_proc :: proc(task: ^hacks.Procedure_Context) {
-		// context = common.default_context()
+		yield_in_proc :: proc(task: ^hacks.Procedure_Context) {
+			hacks.yield(task)
+		}
 		
 		log.info("%v", task)
 
 		log.info("Hello world with task")
-		// defer log.infof("deferred")
+		defer log.infof("deferred")
 
-		// return_val: int = 42
+		return_val: int = 42
 		log.infof(
 			"Will return to: %x (and will thus jump to %x)", 
 			task.caller_registers.register_statuses[.Ip], 
 			task.caller_registers.register_statuses[.Lr],
 		)
 		// hacks._force_return(task)
-		hacks._yield(task)
+		yield_in_proc(task)
 
-		log.infof("Resumed task")
-		// return_val = 43
-		hacks._yield(task)
+		log.infof("Resumed task %d", return_val)
+		return_val = 43
+		hacks.yield(task)
 
-		log.infof("Resumed task")
-		// return_val = 44
-		// hacks.return(task)
-
-		// hacks._force_return(task)
+		log.infof("Resumed task %d", return_val)
+		return_val = 44
 	}
 
 	log.infof("Test_Proc address: %x", transmute(uintptr)(test_proc))
@@ -107,7 +106,7 @@ main :: proc() {
 	log.infof("Task ip address %x", transmute(uintptr)(&task.callee_snapshot.register_snapshot.register_statuses[.Ip]))
 
 	ctx := common.default_context()
-	hacks._call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
+	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
 	
 	log.infof("Resumed main")
 	log.infof(
@@ -115,7 +114,7 @@ main :: proc() {
 		task.callee_snapshot.register_snapshot.register_statuses[.Ip], 
 		task.callee_snapshot.register_snapshot.register_statuses[.Lr],
 	)
-	hacks._resume(&task)
+	hacks.resume(&task)
 
 	log.infof("Resumed main")
 	log.infof(
@@ -123,7 +122,7 @@ main :: proc() {
 		task.callee_snapshot.register_snapshot.register_statuses[.Ip], 
 		task.callee_snapshot.register_snapshot.register_statuses[.Lr],
 	)
-	hacks._resume(&task)
+	hacks.resume(&task)
 
 	log.infof("Returned main")
 

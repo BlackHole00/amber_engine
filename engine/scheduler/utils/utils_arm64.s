@@ -106,13 +106,18 @@ _registersnapshot_restore_and_jump:
         msr fpcr, x1
 
         ldr x1,  [x0, RS_REGISTER_STATUSES_OFFSET + (14 * REGISTER_SIZE)] ; ir
-        br x1
-        ; br lr
+        br lr
 
 ; @modified_registers: x0, x1, x2, x3, sp
 ; @parameters: x0 = ^Procedure_Snapshot
 ;              x1 = stack base
+;              x2 = caller link return
+;              x3 = caller frame pointer
 _stacksnapshot_restore:
+        mov x4, x1
+        mov x5, x2
+        mov x6, x3
+        
         ldr x2, [x0, SS_LEN_OFFSET]
         ldr x0, [x0, SS_DATA_PTR_OFFSET]
 
@@ -128,6 +133,9 @@ _memcopy_start:
         bge _memcopy_start
 _memcopy_end:
 
+        str x5, [x4, -8]
+        str x6, [x4, -16]
+
         mov sp, x1
         ret lr
 
@@ -138,8 +146,6 @@ _memcopy_end:
 ;              x3 = link return
 ;              x4 = current stack
 ;              x5 = current frame pointer
-;              x6 = caller frame pointer
-;              x7 = main link return
 _proceduresnapshot_create:
         str lr, [sp, -16]!
         
@@ -163,8 +169,6 @@ _proceduresnapshot_create:
         add x0, x0, PS_STACK_SNAPSHOT_OFFSET; x0 = &Procedure_Snapshot.stack_snapshot
         mov x1, x8                          ; x1 = stack base
         mov x2, x3                          ; x2 = current stack
-        mov x3, x7
-        mov x4, x6
         bl _stacksnapshot_create
         ; _stacksnapshot_create(&Procedure_Snapshot.stack_snapshot, stack base, current stack)
 
@@ -174,14 +178,16 @@ _proceduresnapshot_create:
 ; @calling_convention: c
 ; @parameters: x0 = ^Procedure_Snapshot
 ;              x1 = stack base
+;              x2 = caller link return
+;              x3 = caller frame pointer
 _proceduresnapshot_restore:
-        mov x4, x0
+        mov x7, x0
         
         add x0, x0, PS_STACK_SNAPSHOT_OFFSET
-        ; x1 is valid
+        ; x1, x2, x3 is valid
         bl _stacksnapshot_restore
 
-        mov x0, x4
+        mov x0, x7
         b _registersnapshot_restore_and_jump
 
 
@@ -192,14 +198,12 @@ _proceduresnapshot_restore:
 ;              x3 = ^runtime.Context
 .globl _call
 _call:
-        ; str lr, [sp, -16]!
-        
         mov x5, x1
         mov x6, x2
         mov x7, x3
         
         add x0, x0, PC_CALLER_REGISTERS_OFFSET
-        adr x1, _call_restore_point
+        mov x1, 0
         mov x2, lr
         mov x3, sp
         mov x4, fp
@@ -212,16 +216,12 @@ _call:
         br x5
         ; procedure(parameter, ^runtime.Context)
 
-_call_restore_point:
-        ; ldr lr, [sp], 16
-        ret lr
-
 ; @calling_convention: c
 ; @parameters: x0 = ^Procedure_Context
 .globl _resume
 _resume:
         add x0, x0, PC_CALLER_REGISTERS_OFFSET
-        adr x1, _resume_restore_point
+        mov x1, 0
         mov x2, lr
         mov x3, sp
         mov x4, fp
@@ -229,11 +229,10 @@ _resume:
 
         sub x0, x0, PC_CALLER_REGISTERS_OFFSET
         mov x1, sp
+        ; x2 is the same
+        mov x3, fp
         b _proceduresnapshot_restore
         
-_resume_restore_point:
-        ret lr
-
 ; @calling_convention: c
 ; @parameters: x0 = ^Procedure_Context
 .globl _yield
@@ -242,12 +241,10 @@ _yield:
 
         add x0, x0, PC_CALLEE_SNAPSHOT_OFFSET
         ldr x1, [x0, PC_CALLER_REGISTERS_OFFSET + RS_REGISTER_STATUSES_OFFSET + (13 * REGISTER_SIZE)] ; x1 = Procedure_Context.caller_registers[.Sp]
-        adr x2, _yield_restore_point
+        mov x2, 0
         mov x3, lr
         add x4, sp, 16
         mov x5, fp
-        ldr x6, [x0, PC_CALLER_REGISTERS_OFFSET + RS_REGISTER_STATUSES_OFFSET + (11 * REGISTER_SIZE)] ; fp
-        ldr x7, [x0, PC_CALLER_REGISTERS_OFFSET + RS_REGISTER_STATUSES_OFFSET + (12 * REGISTER_SIZE)] ; lr
         bl _proceduresnapshot_create
 
         ldr x0, [sp], 16
@@ -255,9 +252,6 @@ _yield:
         mov sp, x1
         add x0, x0, PC_CALLER_REGISTERS_OFFSET
         b _registersnapshot_restore_and_jump
-
-_yield_restore_point:
-        ret lr
 
 ; @calling_convention: c
 ; @parameters: x0 = ^Procedure_Context

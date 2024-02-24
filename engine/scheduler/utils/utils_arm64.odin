@@ -67,8 +67,6 @@ stacksnapshot_create :: proc "c" (
 	stack_snapshot: ^Stack_Snapshot,
 	stack_base: uintptr,
 	current_stack: uintptr,
-	link_return_to_caller: uintptr,
-	caller_frame_pointer: uintptr,
 ) {
 	context = common.default_context()
 
@@ -81,13 +79,6 @@ stacksnapshot_create :: proc "c" (
 
 	stack_snapshot.stack = make([]byte, used_stack_size)
 	mem.copy_non_overlapping(&stack_snapshot.stack[0], (rawptr)(current_stack), used_stack_size)
-
-	stack_as_uintprts := mem.slice_data_cast([]uintptr, stack_snapshot.stack)
-	stack_as_uintprts_len := len(stack_as_uintprts)
-	stack_as_uintprts[stack_as_uintprts_len - 1] = link_return_to_caller
-	stack_as_uintprts[stack_as_uintprts_len - 2] = caller_frame_pointer
-
-	log.infof("will return at %x", link_return_to_caller)
 }
 
 @(private = "file")
