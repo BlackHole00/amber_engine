@@ -2,10 +2,13 @@ package amber_engine_scheduler_utils
 
 import "base:runtime"
 
+// Register_Snapshot saves the states of the needed registers in order to be
+// able to resume a procedure.
+// Only the non-volatile registers defined by the c calling convention are saved
 @(private)
 _Register_Snapshot :: struct {
 	register_statuses:      [Register_Type]Register_Value,
-	simd_register_statuses: [Simd_Register_Type]Lower_Float_Register_Value,
+	simd_register_statuses: [Simd_Register_Type]Lower_Simd_Register_Value,
 	fpcr_status:            Register_Value,
 }
 
@@ -56,7 +59,7 @@ Simd_Register_Type :: enum {
 @(private = "file")
 Register_Value :: uintptr
 @(private = "file")
-Float_Register_Value :: i128
+Simd_Register_Value :: i128
 @(private = "file")
-Lower_Float_Register_Value :: uintptr
+Lower_Simd_Register_Value :: uintptr
 

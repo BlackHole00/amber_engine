@@ -3,6 +3,10 @@ package amber_engine_scheduler_utils
 import "base:intrinsics"
 import "base:runtime"
 
+// Register_Snapshot saves the states of the needed registers in order to be
+// able to resume a procedure.
+// Only the non-volatile registers defined by the stdcall calling convention
+// are saved
 @(private)
 _Register_Snapshot :: struct {
 	register_statuses:     [Register_Type]Register_Value,

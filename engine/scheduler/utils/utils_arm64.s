@@ -1,14 +1,21 @@
-; References:
-;   - https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf
-;   - https://student.cs.uwaterloo.ca/~cs452/docs/rpi4b/aapcs64.pdf
-;   - https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170
-
-; @calling_convention: c
-; @modified_registers: all
-; @params: x0 = ^Stack_Snapshot
-;          x1 = frame base
-;          x2  = current frame
-.globl _stacksnapshot_create
+; Various notes:
+;   - The procedure snapshot will always contains the following data in the 
+;     first (upper) addresses:
+;         - offset -8:  empty
+;         - offset -16: link return to caller. Set when the procedure is called
+;                       with call() and when it is resumed by resume(). 
+;         - offset -24: stack pointer of the caller. Set when the procedure is 
+;                       called with call() and when it is resumed by resume(). 
+;         - offset -32: frame pointer of the caller. Set when the procedure is 
+;                       called with call() and when it is resumed by resume(). 
+;     Please note that the empty location is necessary, since the stack pointer
+;     should always be aligned at 16 bytes (actual arm hardware limitation)
+;   - In the procedure the lr register will always point to _return_point, so
+;     upon natural return the procedure will be able to return to the caller
+;
+; General references:
+;   - arm64: https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf
+;   - calling convention: https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170
 
 .equ REGISTER_SIZE, 8
 
@@ -32,8 +39,10 @@
 
 .text
 
+; Generates a snapshot of the registers necessary to restore the procedure
 ; @calling_convention: c
 ; @modified_registers: x1
+; @stack: none
 ; @parameters: x0 = ^Register_Snapshot
 ;              x1 = link return
 ;              x2 = stack pointer
@@ -69,7 +78,10 @@ _registersnapshot_create:
         
         ret lr
 
+; Restores a register snapshot (and thus returns the execution to the procedure)
 ; @calling_convention: c
+; @modified_registers: all
+; @stack: none - sp will be modified
 ; @parameters: x0 = ^Register_Snapshot
 _registersnapshot_restore_and_jump:
         ldr x18, [x0, RS_REGISTER_STATUSES_OFFSET + (0 * REGISTER_SIZE)]
@@ -86,7 +98,7 @@ _registersnapshot_restore_and_jump:
         
         ldr fp,  [x0, RS_REGISTER_STATUSES_OFFSET + (11 * REGISTER_SIZE)]
         ldr lr,  [x0, RS_REGISTER_STATUSES_OFFSET + (12 * REGISTER_SIZE)]
-        ldr x1,  [x0, RS_REGISTER_STATUSES_OFFSET + (13 * REGISTER_SIZE)]
+        ldr x1,  [x0, RS_REGISTER_STATUSES_OFFSET + (13 * REGISTER_SIZE)] ; sp
         mov sp, x1
     
         ldr d8, [x0, RS_SIMD_REGISTER_STATUSES_OFFSET + (0 * REGISTER_SIZE)]
@@ -103,83 +115,110 @@ _registersnapshot_restore_and_jump:
 
         br lr
 
+; @see call(), _call()
 ; @calling_convention: c
+; @modified_registers: all
+; @stack: none - sp will be modified
 ; @parameters: x0 = ^Procedure_Context
 ;              x1 = procedure address
-;              x2 = parameter
+;              x2 = procedure parameter
 ;              x3 = ^runtime.Context
 .globl _asmcall
 _asmcall:
-        mov x5, x1
-        mov x6, lr
-        mov x7, x2
-        mov x8, x3
+        mov x5, x1                          ; x5 = procedure address
+        mov x6, x2                          ; x6 = procedure parameter
+        mov x7, x3                          ; x7 = ^runtime.Context
+        mov x8, lr                          ; x8 = lr
         
-        mov x1, lr
-        mov x2, sp
-        mov x3, fp
+        mov x1, lr                          ; x1 = lr
+        mov x2, sp                          ; x2 = sp
+        mov x3, fp                          ; x3 = fp
         bl _registersnapshot_create
+        ; _registersnapshot_create(&Procedure_Context.caller_registers, lr, sp, fp)
         
-        ldr x1, [x0, PC_CALLEE_STACK_OFFSET + PS_STACK_BASE_OFFSET]
-        sub x1, x1, 8
-        str x6, [x1], -8
-        mov x6, sp
-        str x6, [x1], -8
-        str fp, [x1]
+        ; setup stack
+        ldr x1, [x0, PC_CALLEE_STACK_OFFSET + PS_STACK_BASE_OFFSET] 
+        sub x1, x1, 8                       ; x1 = Procedure_Context.callee_stack.stack_base
+        str x8, [x1], -8                    ; (stack_base - 8)^ = lr
+        str x2, [x1], -8                    ; (stack_base - 16)^ = sp
+        str fp, [x1]                        ; (stack_base - 24)^ = fp
         
-        adr lr, _return_point
-        mov sp, x1
-        mov fp, sp
+        adr lr, _return_point               ; lr = &&_return_point
+        mov sp, x1                          ; sp = stack_base - 24
+        mov fp, x1                          ; fp = stack_base - 24
 
-        mov x0, x7
-        mov x1, x8
+        mov x0, x6                          ; x0 = procedure parameter
+        mov x1, x7                          ; x1 = ^runtime.Context
         br x5
+        ; procedure address(procedure parameter, ^runtime.Context)
 
+; @see yield()
 ; @calling_convention: c
+; @modified_registers: all
+; @stack: none - sp will be modified
 ; @parameters: x0 = ^Procedure_Context
 .globl _asmyield
 _asmyield:
-        add x0, x0, PC_CALLEE_REGISTERS_OFFSET
-        mov x1, lr
-        mov x2, sp
-        mov x3, fp
+        add x0, x0, PC_CALLEE_REGISTERS_OFFSET ; x0 = &Procedure_Context.callee_registers
+        mov x1, lr                          ; x1 = lr
+        mov x2, sp                          ; x2 = sp
+        mov x3, fp                          ; x3 = fp
         bl _registersnapshot_create
+        ; _registersnapshot_create(&Procedure_Context.callee_registers, lr, sp, fp)
 
-        sub x0, x0, PC_CALLEE_REGISTERS_OFFSET
+        sub x0, x0, PC_CALLEE_REGISTERS_OFFSET ; x0 = &Procedure_Context.caller_registers
         b _registersnapshot_restore_and_jump
+        ; _registersnapshot_restore_and_jump(&Procedure_Context.caller_registers)
 
+; @see resume()
 ; @calling_convention: c
+; @modified_registers: all
+; @stack: none - sp will be modified
 ; @parameters: x0 = ^Procedure_Context
 .globl _asmresume
 _asmresume:
-        mov x6, lr
+        mov x6, lr                          ; x6 = lr
         
-        mov x1, lr
-        mov x2, sp
-        mov x3, fp
+        mov x1, lr                          ; x1 = lr
+        mov x2, sp                          ; x2 = sp
+        mov x3, fp                          ; x3 = fp
         bl _registersnapshot_create
+        ; _registersnapshot_create(&Procedure_Context.caller_registers)
 
-        ldr x1, [x0, PC_CALLEE_STACK_OFFSET + PS_STACK_BASE_OFFSET]
-        str x6, [x1, -8]
-        str x2, [x1, -16]
-        str fp, [x1, -24]
+        ; setup stack
+        ldr x1, [x0, PC_CALLEE_STACK_OFFSET + PS_STACK_BASE_OFFSET] ; x1 = &Procedure_Context.callee_stack.stack_base
+        str x6, [x1, -8]                    ; (stack_base - 8)^ = lr
+        str x2, [x1, -16]                   ; (stack_base - 16)^ = sp
+        str fp, [x1, -24]                   ; (stack_base - 24)^ = fp
 
-        add x0, x0, PC_CALLEE_REGISTERS_OFFSET
+        add x0, x0, PC_CALLEE_REGISTERS_OFFSET ; x0 = &Procedure_Context.callee_registers
         b _registersnapshot_restore_and_jump
+        ; _registersnapshot_restore_and_jump(&Procedure_Context.callee_registers)
         
         
+; @see force_return()
 ; @calling_convention: c
+; @modified_registers: all
+; @stack: none - sp will be modified
 ; @parameters: x0 = ^Procedure_Context
 .globl _asmforce_return
 _asmforce_return:
         b _registersnapshot_restore_and_jump
+        ; _registersnapshot_restore_and_jump(&Procedure_Context.caller_registers)
 
 ; @calling_convention: c
+; @modified_registers: x1
+; @stack: none 
+; @return: stack pointer of caller
 .globl _asmget_stack_pointer
 _asmget_stack_pointer:
-        mov x1, rp
+        mov x0, sp
         ret lr
 
+; Once a procedue called with call() returns normally (without force_return())
+; it will return here. The original stack pointer, frame pointer and link return
+; of the caller are restored from the stack, in order to return to normal 
+; execution
 _return_point:
         ldr lr, [sp, 16]
         ldr fp, [sp]

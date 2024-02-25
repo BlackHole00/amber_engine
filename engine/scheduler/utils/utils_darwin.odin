@@ -3,6 +3,8 @@ package amber_engine_scheduler_utils
 import "base:runtime"
 import "core:sys/darwin"
 
+// @source _asmcall is architecture dependant
+@(private)
 _call :: #force_inline proc(
 	procedure_context: ^Procedure_Context,
 	procedure_address: rawptr,
@@ -32,6 +34,7 @@ _call :: #force_inline proc(
 	)
 }
 
+@(private)
 _procedurecontext_free :: #force_inline proc(procedure_context: ^Procedure_Context) {
 	darwin.syscall_munmap(
 		(rawptr)(procedure_context.callee_stack.stack_address),

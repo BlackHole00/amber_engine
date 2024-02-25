@@ -1,5 +1,17 @@
-; References:
-;  - stdcall: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
+; Various notes:
+;   - The procedure snapshot will always contains the following data in the 
+;     first (upper) addresses:
+;         - offset -8:  link return to caller. Set when the procedure is called
+;                       with call() and when it is resumed by resume(). 
+;         - offset -16: stack pointer of the caller. Set when the procedure is 
+;                       called with call() and when it is resumed by resume(). 
+;         - offset -24: link return to _return_point, since this is the last
+;                       last entry in the stack, the procedure when will return
+;                       will use this address as the link return and will jump
+;                       to _return_point
+;
+; General references:
+;   - stdcall calling convention: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
 
 global _asmcall
 global _asmyield
@@ -28,11 +40,9 @@ PC_CALLEE_REGISTERS_OFFSET equ (PC_CALLER_REGISTERS_OFFSET + RS_SIZE)
 PC_CALLEE_STACK_OFFSET equ (PC_CALLEE_REGISTERS_OFFSET + RS_SIZE)
 PC_SIZE equ (PC_CALLEE_STACK_OFFSET + PS_SIZE)
 
-; Other
-SIZE_OF_CALL_INSTRUCTION equ 12
-
 section .text
 
+; Generates a snapshot of the registers necessary to restore the procedure
 ; @calling_convention: stdcall
 ; @modified_registers: none
 ; @stack: none
@@ -65,9 +75,10 @@ _registersnapshot_create:
 
         ret
 
+; Restores a register snapshot (and thus returns the execution to the procedure)
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: none
+; @stack: none - rsp will be modified
 ; @params: RCX = ^Procedure_Snapshot
 _registersnapshot_restore_and_jump:
         mov rdi, [rcx + RS_REGISTER_STATUSES_OFFSET + (0 * REGISTER_SIZE)]
@@ -93,9 +104,10 @@ _registersnapshot_restore_and_jump:
 
         jmp [rcx + RS_REGISTER_STATUSES_OFFSET + (8 * REGISTER_SIZE)]
 
+; @see call(), _call()
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: none
+; @stack: none - rsp will be modified
 ; @params: RCX = ^Procedure_Context
 ;          RDX = address of procedure
 ;          R8  = ^Task
@@ -123,9 +135,10 @@ _asmcall:
         jmp r10
         ; procedure(^Task, ^runtime.Context)
 
+; @see yield()
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: 8 bytes: [0] = ^Procedure_Context 
+; @stack: none - rsp will be modified
 ; @params: RCX = ^Procedure_Context
 _asmyield:
         add rcx, PC_CALLEE_REGISTERS_OFFSET ; rcx = &Procedure_Context.callee_registers
@@ -139,9 +152,10 @@ _asmyield:
         jmp _registersnapshot_restore_and_jump
         ; _registersnapshot_restore_and_jump(&Procedure_Context.caller_registers)
 
+; @see resume()
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: none
+; @stack: none - rsp will be modified
 ; @params: RCX = ^Procedure_Context
 _asmresume: 
         mov rdx, [rsp]                      ; rdx = lr
@@ -159,23 +173,27 @@ _asmresume:
         jmp _registersnapshot_restore_and_jump
         ; _registersnapshot_restore_and_jump(&Procedure_Context.callee_registers)
         
+; @see force_return()
 ; @calling_convention: stdcall
 ; @modified_registers: all
-; @stack: none
+; @stack: none - rsp will be modified
 ; @params: RCX = ^Procedure_Context
 _asmforce_return:
         jmp _registersnapshot_restore_and_jump
         ; _registersnapshot_restore_and_jump(&Procedure_Context.caller_registers)
 
 ; @calling_convention: stdcall
-; @modified_registers: all
-; @stack: none
+; @modified_registers: rax, rbx, rsp
+; @stack: none - rsp will be modified
 ; @return: stack pointer of caller
 _asmget_stack_pointer:
         pop rbx
         mov rax, rsp
         jmp rbx
 
+; Once a procedue called with call() returns normally (without force_return())
+; it will return here. The original stack pointer and link return of the caller
+; are restored from the stack, in order to return to normal execution
 _return_point:
         mov rcx, [rsp + 8]
         mov rsp, [rsp]

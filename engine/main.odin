@@ -67,8 +67,6 @@ main :: proc() {
 			hacks.yield(task)
 		}
 
-		// log.infof("%v", task)
-
 		log.infof("Hello world with task")
 		defer log.infof("deferred")
 
