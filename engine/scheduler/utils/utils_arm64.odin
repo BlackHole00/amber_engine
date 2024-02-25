@@ -23,7 +23,7 @@ foreign asm_utils {
 	@(private, link_name = "asmforce_return")
 	_force_return :: proc "c" (procedure_context: ^Procedure_Context) -> ! ---
 	@(private, link_name = "asmget_stack_pointer")
-	_get_stack_pointer :: proc "stdcall" () -> uintptr ---
+	_get_stack_pointer :: proc "c" () -> uintptr ---
 }
 
 @(private = "file")
