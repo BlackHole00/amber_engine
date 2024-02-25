@@ -1,7 +1,6 @@
 package main
 
 import "base:intrinsics"
-import "core:mem"
 import "core:log"
 import "core:time"
 import "engine:common"
@@ -67,10 +66,10 @@ main :: proc() {
 		yield_in_proc :: proc(task: ^hacks.Procedure_Context) {
 			hacks.yield(task)
 		}
-		
-		log.info("%v", task)
 
-		log.info("Hello world with task")
+		// log.infof("%v", task)
+
+		log.infof("Hello world with task")
 		defer log.infof("deferred")
 
 		return_val: int = 42
@@ -88,8 +87,8 @@ main :: proc() {
 	defer hacks.procedurecontext_free(&task)
 
 	ctx := common.default_context()
-	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx, 2 * mem.Megabyte)
-	
+	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
+
 	log.infof("Resumed main")
 	hacks.resume(&task)
 

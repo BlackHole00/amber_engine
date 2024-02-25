@@ -5,6 +5,7 @@ global _asmcall
 global _asmyield
 global _asmresume
 global _asmforce_return
+global _asmget_stack_pointer
 
 ; Register sizes
 REGISTER_SIZE equ 8
@@ -165,6 +166,15 @@ _asmresume:
 _asmforce_return:
         jmp _registersnapshot_restore_and_jump
         ; _registersnapshot_restore_and_jump(&Procedure_Context.caller_registers)
+
+; @calling_convention: stdcall
+; @modified_registers: all
+; @stack: none
+; @return: stack pointer of caller
+_asmget_stack_pointer:
+        pop rbx
+        mov rax, rsp
+        jmp rbx
 
 _return_point:
         mov rcx, [rsp + 8]

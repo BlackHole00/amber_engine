@@ -14,11 +14,13 @@ foreign asm_utils {
 	@(private, link_name = "_asmcall")
 	_asmcall :: proc "stdcall" (Procedure_Context: ^Procedure_Context, address: rawptr, parameter: rawptr, ctx: ^runtime.Context) ---
 	@(private, link_name = "_asmyield")
-	_asmyield :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
+	_yield :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
 	@(private, link_name = "_asmresume")
-	_asmresume :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
+	_resume :: proc "stdcall" (procedure_context: ^Procedure_Context) ---
 	@(private, link_name = "_asmforce_return")
-	_asmforce_return :: proc "stdcall" (procedure_context: ^Procedure_Context) -> ! ---
+	_force_return :: proc "stdcall" (procedure_context: ^Procedure_Context) -> ! ---
+	@(private, link_name = "_asmget_stack_pointer")
+	_get_stack_pointer :: proc "stdcall" () -> uintptr ---
 }
 
 @(private = "file")

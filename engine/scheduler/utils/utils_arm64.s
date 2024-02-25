@@ -174,6 +174,12 @@ _asmresume:
 _asmforce_return:
         b _registersnapshot_restore_and_jump
 
+; @calling_convention: c
+.globl _asmget_stack_pointer
+_asmget_stack_pointer:
+        mov x1, rp
+        ret lr
+
 _return_point:
         ldr lr, [sp, 16]
         ldr fp, [sp]
