@@ -1,5 +1,25 @@
 package amber_engine_scheduler
 
+import "core:mem"
+import "core:mem/virtual"
+import "engine:common"
+import aec "shared:ae_common"
+
+Task_Id :: aec.Task_Id
+Task_Info :: aec.Task_Info
+
+scheduler: struct {
+	allocator:         mem.Allocator,
+	arena:             virtual.Arena,
+	// NOTE(Vicix): In an ideal world this id generator should be cyclic, but
+	//              we are using u64 for the Task_Id. If we suppose a task is 
+	//              registered every nanosecond (literally a too fast 
+	//              approssimation) the possible IDs will be emptied in 584942
+	//              *years*. The program will crash instead.
+	task_id_generator: common.Id_Generator(Task_Id),
+	// task_queue: Task_Queue,
+}
+
 // import "core:log"
 // import "core:mem"
 // import "core:os"

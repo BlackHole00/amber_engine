@@ -2,6 +2,8 @@ package main
 
 import "base:intrinsics"
 import "core:log"
+import "core:mem"
+// import win "core:sys/windows"
 import "core:time"
 import "engine:common"
 import "engine:config"
@@ -87,7 +89,7 @@ main :: proc() {
 	defer hacks.procedurecontext_free(&task)
 
 	ctx := common.default_context()
-	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
+	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx, 2048 * mem.Kilobyte)
 
 	log.infof("Resumed main")
 	hacks.resume(&task)
@@ -96,6 +98,18 @@ main :: proc() {
 	hacks.resume(&task)
 
 	log.infof("Returned main")
+
+	// for i in 0 ..= 100_000 {
+	// 	log.infof("Allocating %d", i)
+
+	// 	address := win.VirtualAlloc(
+	// 		nil,
+	// 		2048 * mem.Kilobyte,
+	// 		win.MEM_RESERVE | win.MEM_COMMIT,
+	// 		win.PAGE_READWRITE,
+	// 	)
+	// 	([^]uint)(address)[42] = 42
+	// }
 
 	// log.infof("Initialized engine")
 

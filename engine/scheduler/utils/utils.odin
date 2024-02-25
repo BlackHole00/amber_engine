@@ -2,9 +2,13 @@ package amber_engine_scheduler_utils
 
 import "core:runtime"
 
-Procedure_Context :: _Procedure_Context
+Procedure_Context :: struct {
+	caller_registers: Register_Snapshot,
+	callee_registers: Register_Snapshot,
+	callee_stack:     Procedure_Stack,
+}
 
-procedurecontext_free :: #force_inline proc(procedure_context: ^_Procedure_Context) {
+procedurecontext_free :: #force_inline proc(procedure_context: ^Procedure_Context) {
 	_procedurecontext_free(procedure_context)
 }
 
@@ -13,8 +17,15 @@ call :: #force_inline proc(
 	procedure_address: rawptr,
 	procedure_parameter: rawptr,
 	procedure_context_parameter: ^runtime.Context,
+	stack_size: uint,
 ) {
-	_call(procedure_context, procedure_address, procedure_parameter, procedure_context_parameter)
+	_call(
+		procedure_context,
+		procedure_address,
+		procedure_parameter,
+		procedure_context_parameter,
+		stack_size,
+	)
 }
 
 yield :: #force_inline proc(procedure_context: ^Procedure_Context) {
