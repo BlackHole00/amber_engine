@@ -1,10 +1,27 @@
 package amber_engine_scheduler_utils
 
 import "base:runtime"
-import "core:log"
-import "core:mem"
-import "engine:common"
 
+@(private)
+_Register_Snapshot :: struct {
+	register_statuses:      [Register_Type]Register_Value,
+	simd_register_statuses: [Simd_Register_Type]Lower_Float_Register_Value,
+	fpcr_status:            Register_Value,
+}
+
+foreign import asm_utils "utils_arm64.s"
+foreign asm_utils {
+	@(private, link_name = "asmcall")
+	_asmcall :: proc "c" (Procedure_Context: ^Procedure_Context, address: rawptr, parameter: rawptr, ctx: ^runtime.Context) ---
+	@(private, link_name = "asmyield")
+	_asmyield :: proc "c" (procedure_context: ^Procedure_Context) ---
+	@(private, link_name = "asmresume")
+	_asmresume :: proc "c" (procedure_context: ^Procedure_Context) ---
+	@(private, link_name = "asmforce_return")
+	_asmforce_return :: proc "c" (procedure_context: ^Procedure_Context) -> ! ---
+}
+
+@(private = "file")
 Register_Type :: enum {
 	X18,
 	X19,
@@ -20,9 +37,9 @@ Register_Type :: enum {
 	Fp,
 	Lr,
 	Sp,
-	Ip,
 }
 
+@(private = "file")
 Simd_Register_Type :: enum {
 	V8,
 	V9,
@@ -34,73 +51,10 @@ Simd_Register_Type :: enum {
 	V15,
 }
 
-Register_Snapshot :: struct {
-	register_statuses:      [Register_Type]Register_Value,
-	simd_register_statuses: [Simd_Register_Type]Lower_Float_Register_Value,
-	fpcr_status:            Register_Value,
-}
-
-_Procedure_Context :: struct {
-	callee_snapshot:  Procedure_Snapshot,
-	caller_registers: Register_Snapshot,
-}
-
-// REGISTER_SIZE :: 8
-Register_Value :: uintptr
-Float_Register_Value :: i128
-Lower_Float_Register_Value :: uintptr
-
-foreign import asm_utils "utils_arm64.s"
-foreign asm_utils {
-	@(link_name="call")
-	_call :: proc "c" (Procedure_Context: ^Procedure_Context, address: rawptr, parameter: rawptr, ctx: ^runtime.Context) ---
-	@(link_name="yield")
-	_yield :: proc "c" (procedure_context: ^Procedure_Context) ---
-	@(link_name="resume")
-	_resume :: proc "c" (procedure_context: ^Procedure_Context) ---
-	@(link_name="force_return")
-	_force_return :: proc "c" (procedure_context: ^Procedure_Context) -> ! ---
-}
-
-@(export, private = "file")
-stacksnapshot_create :: proc "c" (
-	stack_snapshot: ^Stack_Snapshot,
-	stack_base: uintptr,
-	current_stack: uintptr,
-) {
-	context = common.default_context()
-
-	if stack_snapshot.stack != nil {
-		delete(stack_snapshot.stack)
-	}
-
-	log.infof("will copy from %x to %x", current_stack, stack_base)
-	used_stack_size := (int)(stack_base - current_stack)
-
-	stack_snapshot.stack = make([]byte, used_stack_size)
-	mem.copy_non_overlapping(&stack_snapshot.stack[0], (rawptr)(current_stack), used_stack_size)
-}
-
 @(private = "file")
-stacksnapshot_free :: proc "c" (stack_snapshot: ^Stack_Snapshot) {
-	context = common.default_context()
-
-	if stack_snapshot.stack != nil {
-		delete(stack_snapshot.stack)
-	}
-}
-
-Stack_Snapshot :: struct {
-	// Teorically the stack should be aligned to 128 bits
-	stack: []byte,
-}
-
-Procedure_Snapshot :: struct {
-	register_snapshot: Register_Snapshot,
-	stack_snapshot:    Stack_Snapshot,
-}
-
-_procedurecontext_free :: proc(procedure_context: ^Procedure_Context) {
-	stacksnapshot_free(&procedure_context.callee_snapshot.stack_snapshot)
-}
+Register_Value :: uintptr
+@(private = "file")
+Float_Register_Value :: i128
+@(private = "file")
+Lower_Float_Register_Value :: uintptr
 

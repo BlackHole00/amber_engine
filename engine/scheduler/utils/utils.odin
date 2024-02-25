@@ -2,6 +2,12 @@ package amber_engine_scheduler_utils
 
 import "core:runtime"
 
+Procedure_Stack :: struct {
+	stack_address: uintptr,
+	stack_size:    uintptr,
+	stack_base:    uintptr,
+}
+
 Procedure_Context :: struct {
 	caller_registers: Register_Snapshot,
 	callee_registers: Register_Snapshot,

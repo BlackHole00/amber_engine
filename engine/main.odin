@@ -1,9 +1,8 @@
 package main
 
 import "base:intrinsics"
-import "core:log"
 import "core:mem"
-// import win "core:sys/windows"
+import "core:log"
 import "core:time"
 import "engine:common"
 import "engine:config"
@@ -68,7 +67,7 @@ main :: proc() {
 		yield_in_proc :: proc(task: ^hacks.Procedure_Context) {
 			hacks.yield(task)
 		}
-
+		
 		log.info("%v", task)
 
 		log.info("Hello world with task")
@@ -89,8 +88,8 @@ main :: proc() {
 	defer hacks.procedurecontext_free(&task)
 
 	ctx := common.default_context()
-	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx, 2048 * mem.Kilobyte)
-
+	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx, 2 * mem.Megabyte)
+	
 	log.infof("Resumed main")
 	hacks.resume(&task)
 
@@ -99,17 +98,30 @@ main :: proc() {
 
 	log.infof("Returned main")
 
-	// for i in 0 ..= 100_000 {
-	// 	log.infof("Allocating %d", i)
+	// test_proc :: proc(pc: ^hacks.Procedure_Context) {
+	// 	local_var := 0
 
-	// 	address := win.VirtualAlloc(
-	// 		nil,
-	// 		2048 * mem.Kilobyte,
-	// 		win.MEM_RESERVE | win.MEM_COMMIT,
-	// 		win.PAGE_READWRITE,
-	// 	)
-	// 	([^]uint)(address)[42] = 42
+	// 	log.infof("Before yield: local_var = %d", local_var)
+	// 	hacks.yield(pc)
+
+	// 	local_var = 42
+	// 	log.infof("After yield: local_var = %d", local_var)
+	// 	hacks.yield(pc)
+
+	// 	local_var = 420
+	// 	log.infof("After second yield: local_var = %d", local_var)
 	// }
+
+	// pc := hacks.Procedure_Context{}
+	// defer hacks.procedurecontext_free(&pc)
+
+	// log.info("Calling test_proc...")
+	// hacks.call(&pc, (rawptr)(test_proc), context)
+	// log.info("Resuming test_proc...")
+	// hacks.resume(&pc, context)
+	// log.info("Resuming test_proc...")
+	// hacks.resume(&pc, context)
+	// log.info("test_proc returned")
 
 	// log.infof("Initialized engine")
 

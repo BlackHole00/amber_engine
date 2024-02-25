@@ -2,7 +2,7 @@ package amber_engine_scheduler_utils
 
 import "base:runtime"
 import "core:log"
-import win "core:sys/windows"
+import "core:sys/darwin"
 
 Register_Snapshot :: _Register_Snapshot
 
@@ -14,7 +14,14 @@ _call :: #force_inline proc(
 	stack_size: uint,
 ) {
 	procedure_context.callee_stack.stack_address = (uintptr)(
-		win.VirtualAlloc(nil, stack_size, win.MEM_COMMIT | win.MEM_RESERVE, win.PAGE_READWRITE),
+		darwin.syscall_mmap(
+			nil,
+			(u64)(stack_size),
+			darwin.PROT_READ | darwin.PROT_WRITE,
+			darwin.MAP_ANONYMOUS | darwin.MAP_PRIVATE,
+			-1,
+			0,
+		),
 	)
 	procedure_context.callee_stack.stack_size = (uintptr)(stack_size)
 	procedure_context.callee_stack.stack_base =
@@ -44,10 +51,9 @@ _force_return :: #force_inline proc(procedure_context: ^Procedure_Context) -> ! 
 }
 
 _procedurecontext_free :: #force_inline proc(procedure_context: ^Procedure_Context) {
-	win.VirtualFree(
-		transmute(rawptr)(procedure_context.callee_stack.stack_address),
-		0,
-		win.MEM_RELEASE,
+	darwin.syscall_munmap(
+		(rawptr)(procedure_context.callee_stack.stack_address),
+		(u64)(procedure_context.callee_stack.stack_size),
 	)
 }
 
