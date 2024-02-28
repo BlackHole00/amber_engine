@@ -169,6 +169,7 @@ resourcemanager_is_id_valid :: proc(
 }
 
 // Gets the pointer associated to a determined id
+// @returns: nil if the provided id is not valid
 // @note: The returned Arc must be dropped after it is no longer needed
 // @thread_safe: Thread-safe
 resourcemanager_get :: proc(resource_manager: $T/^Resource_Manager($U, $I), id: I) -> ^Arc(U) {
