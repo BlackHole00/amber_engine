@@ -9,12 +9,14 @@ import "engine:globals"
 import "engine:interface"
 import "engine:loader"
 import "engine:namespace_manager"
+import "engine:scheduler"
 import hacks "engine:scheduler/utils"
 import "engine:storage"
 import "engine:type_manager"
 import aec "shared:ae_common"
 
 _ :: log
+_ :: scheduler
 _ :: aec
 _ :: interface
 _ :: config
@@ -38,8 +40,6 @@ main :: proc() {
 		config.VERSION.revision,
 	)
 
-	interface.proctable_init(&globals.proc_table)
-
 	config.config_from_file_or_default(&globals.config, ".")
 	defer config.config_free(globals.config)
 	log.infof("Using config %#v", globals.config)
@@ -61,66 +61,6 @@ main :: proc() {
 
 	storage.storage_init(&globals.storage)
 	defer storage.storage_free(globals.storage)
-
-	test_proc :: proc(task: ^hacks.Procedure_Context) {
-		yield_in_proc :: proc(task: ^hacks.Procedure_Context) {
-			hacks.yield(task)
-		}
-
-		log.infof("Hello world with task")
-		defer log.infof("deferred")
-
-		return_val: int = 42
-		yield_in_proc(task)
-
-		log.infof("Resumed task %d", return_val)
-		return_val = 43
-		hacks.yield(task)
-
-		log.infof("Resumed task %d", return_val)
-		return_val = 44
-	}
-
-	task := hacks.Procedure_Context{}
-	defer hacks.procedurecontext_free(&task)
-
-	ctx := common.default_context()
-	hacks.call(&task, (rawptr)(test_proc), (rawptr)(&task), &ctx)
-
-	log.infof("Resumed main")
-	hacks.resume(&task)
-
-	log.infof("Resumed main")
-	hacks.resume(&task)
-
-	log.infof("Returned main")
-
-	// test_proc :: proc(pc: ^hacks.Procedure_Context) {
-	// 	local_var := 0
-
-	// 	log.infof("Before yield: local_var = %d", local_var)
-	// 	hacks.yield(pc)
-
-	// 	local_var = 42
-	// 	log.infof("After yield: local_var = %d", local_var)
-	// 	hacks.yield(pc)
-
-	// 	local_var = 420
-	// 	log.infof("After second yield: local_var = %d", local_var)
-	// }
-
-	// pc := hacks.Procedure_Context{}
-	// defer hacks.procedurecontext_free(&pc)
-
-	// log.info("Calling test_proc...")
-	// hacks.call(&pc, (rawptr)(test_proc), context)
-	// log.info("Resuming test_proc...")
-	// hacks.resume(&pc, context)
-	// log.info("Resuming test_proc...")
-	// hacks.resume(&pc, context)
-	// log.info("test_proc returned")
-
-	// log.infof("Initialized engine")
 
 	// log.infof("Loading mods...")
 	// loader.modmanager_queue_load_folder(&globals.mod_manager, globals.config.mods_location)

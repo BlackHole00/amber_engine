@@ -1,132 +1,131 @@
 package amber_engine_scheduler
 
 import "core:mem"
-import "core:mem/virtual"
+import "core:os"
+import "core:sync"
 import "engine:common"
 import aec "shared:ae_common"
 
-Task_Id :: aec.Task_Id
-Task_Info :: aec.Task_Info
-
-scheduler: struct {
-	allocator:         mem.Allocator,
-	arena:             virtual.Arena,
-	// NOTE(Vicix): In an ideal world this id generator should be cyclic, but
-	//              we are using u64 for the Task_Id. If we suppose a task is 
-	//              registered every nanosecond (literally a too fast 
-	//              approssimation) the possible IDs will be emptied in 584942
-	//              *years*. The program will crash instead.
-	task_id_generator: common.Id_Generator(Task_Id),
-	// task_queue: Task_Queue,
+Scheduler_Descriptor :: struct {
+	thread_count:                        uint,
+	// If true allows the main thread to execute also tasks not designated for
+	// the main thread.
+	main_thread_dynamic_queue_selection: bool,
 }
 
-// import "core:log"
-// import "core:mem"
-// import "core:os"
-// import aec "shared:ae_common"
+scheduler: struct {
+	using configuration: Scheduler_Descriptor,
+	allocator:           mem.Allocator,
+	task_manager:        common.Resource_Manager(Task_Info, Task_Id),
+	task_queue:          Task_Queue,
+	main_task_queue:     Task_Queue,
+}
 
-// Task_Descriptor :: aec.Task_Descriptor
-// Task_Id :: aec.Task_Id
-// Task_Result :: aec.Task_Result
-// Thread_Id :: aec.Thread_Id
+init :: proc(descriptor: Scheduler_Descriptor, allocator := context.allocator) {
+	context.allocator = allocator
+	scheduler.allocator = allocator
 
-// Task_Info :: struct {
-// 	using info:      aec.Task_Info,
-// 	remaining_waits: int,
-// }
+	scheduler.configuration = descriptor
 
-// Scheduler_Descriptor :: struct {
-// 	thread_count: int,
-// }
+	common.resourcemanager_init(&scheduler.task_manager)
+	taskqueue_init(&scheduler.task_queue)
+	taskqueue_init(&scheduler.main_task_queue)
 
-// Scheduler :: struct {
-// 	allocator:    mem.Allocator,
-// 	threads:      []Scheduler_Thread,
-// 	task_manager: Task_Manager,
-// }
+	thread_count, did_change := cap_thread_count(descriptor.thread_count)
+	if did_change {
+		scheduler.thread_count = thread_count
+	}
+}
 
-// scheduler_init :: proc(
-// 	scheduler: ^Scheduler,
-// 	descriptor: Scheduler_Descriptor,
-// 	allocator := context.allocator,
-// ) -> (
-// 	ok: bool,
-// ) {
-// 	context.allocator = allocator
-// 	scheduler.allocator = allocator
+free :: proc() {
+	context.allocator = scheduler.allocator
 
-// 	thread_count, thread_count_was_higher := cap_thread_count(descriptor.thread_count)
-// 	if thread_count_was_higher {
-// 		log.warnf(
-// 			"The requested thread count (%d) was too high for the machine. It will be adjusted to %d",
-// 			descriptor.thread_count,
-// 			thread_count,
-// 		)
-// 	}
+	common.resourcemanager_free(scheduler.task_manager)
+	taskqueue_init(&scheduler.task_queue)
+	taskqueue_init(&scheduler.main_task_queue)
+}
 
-// 	taskmanager_init(&scheduler.task_manager, thread_count)
+queue_task :: proc(task_descriptor: Task_Descriptor) -> Task_Id {
+	id := common.resourcemanager_reserve_new(&scheduler.task_manager)
 
-// 	scheduler.threads = make([]Scheduler_Thread, thread_count)
-// 	defer if !ok {
-// 		delete(scheduler.threads)
-// 	}
+	task_info: Task_Info
+	taskinfo_from_taskdescriptor(&task_info, task_descriptor, id)
 
-// 	for &thread, idx in scheduler.threads {
-// 		if !schedulerthread_init(
-// 			   &thread,
-// 			   Scheduler_Thread_Descriptor {
-// 				   scheduler = scheduler,
-// 				   priority = .Normal,
-// 				   thread_id = (Thread_Id)(idx),
-// 			   },
-// 		   ) {
-// 			log.errorf("Could not init thread")
-// 			return false
-// 		}
-// 	}
+	task := common.resourcemanager_resolve_reserved_and_get(&scheduler.task_manager, id, task_info)
 
-// 	return true
-// }
+	if task.execute_on_main_thread {
+		taskqueue_push_ready(&scheduler.main_task_queue, task)
+	} else {
+		taskqueue_push_ready(&scheduler.task_queue, task)
+	}
 
-// scheduler_free :: proc(scheduler: ^Scheduler) {
-// 	context.allocator = scheduler.allocator
+	return id
+}
 
-// 	schedulerthread_join_multiple(..scheduler.threads)
-// 	for thread in scheduler.threads {
-// 		schedulerthread_free(thread)
-// 	}
+free_task :: proc(task_id: Task_Id) -> bool {
+	task := common.resourcemanager_get(&scheduler.task_manager, task_id)
+	if task == nil {
+		return false
+	}
+	defer common.rc_drop(task)
 
-// 	taskmanager_free(&scheduler.task_manager)
-// 	delete(scheduler.threads)
-// }
+	if sync.atomic_load(&task.status) == .Finished {
+		common.resourcemanager_remove(&scheduler.task_manager, task_id)
 
-// scheduler_start :: proc(scheduler: ^Scheduler) {
-// 	for &thread in scheduler.threads {
-// 		schedulerthread_start(&thread)
-// 	}
-// }
+		return true
+	} else {
+		sync.guard(&task.mutex)
+		task.free_when_finished = true
 
-// scheduler_get_thread_count :: proc(scheduler: Scheduler) -> int {
-// 	return len(scheduler.threads) + 1
-// }
+		return true
+	}
+}
 
-// @(private)
-// scheduler_has_main_thread :: proc(scheduler: Scheduler) -> bool {
-// 	for thread in scheduler.threads {
-// 		if thread.is_main_thread {
-// 			return true
-// 		}
-// 	}
+get_return_value :: proc(task_id: Task_Id, destination: []byte) -> bool {
+	task := common.resourcemanager_get(&scheduler.task_manager, task_id)
+	if task == nil {
+		return false
+	}
+	defer common.rc_drop(task)
 
-// 	return false
-// }
+	if sync.guard(&task.mutex) {
+		if len(task.return_value) != len(destination) {
+			return false
+		}
 
-// @(private)
-// cap_thread_count :: proc(thread_count: int) -> (new_thread_count: int, has_changed: bool) {
-// 	if thread_count > os.processor_core_count() {
-// 		return os.processor_core_count(), true
-// 	}
+		mem.copy_non_overlapping(&destination[0], &task.return_value[0], len(destination))
+	}
 
-// 	return thread_count, false
-// }
+	return true
+}
+
+is_task_id_valid :: proc(task_id: Task_Id) -> bool {
+	return common.resourcemanager_is_id_valid(&scheduler.task_manager, task_id)
+}
+
+get_task_info :: proc(
+	task_id: Task_Id,
+	allocator := context.allocator,
+) -> (
+	info: aec.Task_Info,
+	ok: bool,
+) {
+	task := common.resourcemanager_get(&scheduler.task_manager, task_id)
+	if task == nil {
+		return
+	}
+	defer common.rc_drop(task)
+
+	taskinfo_clone_to_aec(task, &info)
+	return info, true
+}
+
+@(private)
+cap_thread_count :: proc(thread_count: uint) -> (new_thread_count: uint, has_changed: bool) {
+	if thread_count > (uint)(os.processor_core_count()) {
+		return (uint)(os.processor_core_count()), true
+	}
+
+	return thread_count, false
+}
 

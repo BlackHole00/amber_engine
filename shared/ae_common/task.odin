@@ -18,16 +18,18 @@ Task_Status :: enum {
 	Queued,
 	Running,
 	Suspended,
+	Waiting_For_Tasks,
+	Waiting_For_Time,
 	Finished,
 	Unknown = 0,
 }
 
-Task_Proc :: #type proc(task: ^Task)
+Task_Proc :: #type proc(task: ^Task_Data)
 
 Task_Descriptor :: struct {
 	user_index:             int,
 	user_data:              rawptr,
-	user_priority:          Task_Priority,
+	// user_priority:          Task_Priority,
 	user_context:           runtime.Context,
 	task_proc:              Task_Proc,
 	execute_on_main_thread: bool,
@@ -35,7 +37,7 @@ Task_Descriptor :: struct {
 	free_when_finished:     bool,
 }
 
-Task :: struct {
+Task_Data :: struct {
 	using descriptor:    Task_Descriptor,
 	identifier:          Task_Id,
 	implementation_data: rawptr,
@@ -46,8 +48,7 @@ Task_Info :: struct {
 	identifier:           Task_Id,
 	status:               Task_Status,
 	user_submission_time: time.Time,
-	last_submission_time: time.Time,
-	waiting_for_tasks:    []Task_Id,
-	implementation_data:  rawptr,
+	resume_time:          time.Time,
+	return_value:         []byte,
 }
 

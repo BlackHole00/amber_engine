@@ -145,8 +145,8 @@ arc_as_ptr :: proc(arc: ^Arc($T)) -> ^T {
 }
 
 rc_new :: proc {
-	nrc_new_empty,
-	nrc_new_with_data,
+	rc_new_empty,
+	rc_new_with_data,
 }
 
 arc_new :: proc {

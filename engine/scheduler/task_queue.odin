@@ -1,201 +1,175 @@
 package amber_engine_scheduler
 
-// import pq "core:container/priority_queue"
-// import "core:sync"
-// import "core:time"
-// import aec "shared:ae_common"
+import pq "core:container/priority_queue"
+import "core:container/queue"
+import "core:mem"
+import "core:sync"
+import "core:time"
+import "engine:common"
 
-// @(private)
-// TASK_PRIORITY_MODIFIERS := [?]f32 {
-// 	aec.Task_Priority.Low    = 1,
-// 	aec.Task_Priority.Medium = 2,
-// 	aec.Task_Priority.High   = 3,
-// }
+Task_Queue :: struct {
+	allocator:                mem.Allocator,
+	ready_tasks:              queue.Queue(^common.Arc(Task_Info)),
+	ready_tasks_mutex:        sync.Mutex,
+	time_waiting_tasks:       pq.Priority_Queue(^common.Arc(Task_Info)),
+	time_waiting_tasks_mutex: sync.Mutex,
+	task_waiting_tasks:       map[Task_Id]common.Small_Dyn_Array(^common.Arc(Task_Info)),
+	task_waiting_tasks_mutex: sync.Mutex,
+}
 
-// Task_Queue :: struct {
-// 	queues:        [len(aec.Task_Priority)]pq.Priority_Queue(Task_Info),
-// 	mutexes:       [len(aec.Task_Priority)]sync.Mutex,
-// 	waiting_queue: pq.Priority_Queue(Task_Info),
-// 	waiting_mutex: sync.Mutex,
-// }
+taskqueue_init :: proc(task_queue: ^Task_Queue, allocator := context.allocator) {
+	context.allocator = allocator
+	task_queue.allocator = allocator
 
-// taskqueue_init :: proc(task_queue: ^Task_Queue) {
-// 	for &q in task_queue.queues {
-// 		pq.init(&q, default_prioritylist_less, prioritylist_swap)
-// 	}
-// 	pq.init(&task_queue.waiting_queue, waiting_prioritylist_less, prioritylist_swap)
-// }
+	queue.init(&task_queue.ready_tasks)
+	pq.init(&task_queue.time_waiting_tasks, priorityqueue_less, priorityqueue_swap)
 
-// // @thread_safety: not thread safe
-// taskqueue_free :: proc(task_queue: ^Task_Queue) {
-// 	for &q in task_queue.queues {
-// 		pq.destroy(&q)
-// 	}
-// 	pq.destroy(&task_queue.waiting_queue)
-// }
+	task_queue.task_waiting_tasks = make(
+		map[Task_Id]common.Small_Dyn_Array(^common.Arc(Task_Info)),
+	)
+}
 
-// taskqueue_append :: proc(task_queue: ^Task_Queue, task: Task_Info) {
-// 	if taskinfo_can_execute_task_now(task, false, time.now()) {
-// 		if sync.mutex_guard(&task_queue.mutexes[task.user_priority]) {
-// 			pq.push(&task_queue.queues[task.user_priority], task)
-// 		}
-// 	} else {
-// 		if sync.mutex_guard(&task_queue.waiting_mutex) {
-// 			pq.push(&task_queue.waiting_queue, task)
-// 		}
-// 	}
-// }
+taskqueue_push_ready :: proc(task_queue: ^Task_Queue, task: ^common.Arc(Task_Info)) {
+	sync.guard(&task_queue.ready_tasks_mutex)
 
-// taskqueue_pop :: proc(task_queue: ^Task_Queue) -> (Task_Info, bool) {
-// 	possible_tasks: [len(aec.Task_Priority)]Maybe(Task_Info)
+	queue.push(&task_queue.ready_tasks, task)
+}
 
-// 	for &mutex, i in task_queue.mutexes {
-// 		if sync.mutex_guard(&mutex) {
-// 			task, ok := pq.pop_safe(&task_queue.queues[i])
-// 			if ok {
-// 				possible_tasks[i] = task
-// 			}
-// 		}
-// 	}
+taskqueue_push_time_waiting :: proc(task_queue: ^Task_Queue, task: ^common.Arc(Task_Info)) {
+	sync.guard(&task_queue.ready_tasks_mutex)
 
-// 	best_task_idx := -1
-// 	best_task_importance_factor := min(f32)
+	pq.push(&task_queue.time_waiting_tasks, task)
+}
 
-// 	now := time.now()
+taskqueue_push_task_waiting :: proc(
+	task_queue: ^Task_Queue,
+	task: ^common.Arc(Task_Info),
+	awaits: []Task_Id,
+) {
+	context.allocator = task_queue.allocator
 
-// 	for task, i in possible_tasks {
-// 		if task == nil {
-// 			continue
-// 		}
+	// TODO(Vicix):
+	assert(len(awaits) > 0)
 
-// 		factor := taskinfo_get_importance_factor(task.?, now)
-// 		if factor > best_task_importance_factor {
-// 			best_task_idx = i
-// 			best_task_importance_factor = factor
-// 		}
-// 	}
+	waiting_count: uint = 0
+	if sync.guard(&task_queue.task_waiting_tasks_mutex) {
+		to_remove := make([dynamic]Task_Id)
+		defer delete(to_remove)
 
-// 	if best_task_idx == -1 {
-// 		return {}, false
-// 	}
+		for id in awaits {
+			// Check if a task is finished or invalid.
+			task_info := common.resourcemanager_get(&scheduler.task_manager, id)
+			if task_info == nil {
+				continue
+			}
+			defer common.rc_drop(task_info)
 
-// 	for task, i in possible_tasks {
-// 		if i == best_task_idx {
-// 			continue
-// 		}
+			if sync.atomic_load(&task_info.status) == .Finished {
+				continue
+			}
 
-// 		if task == nil {
-// 			continue
-// 		}
+			waiting_tasks, ok := task_queue.task_waiting_tasks[id]
+			if !ok {
+				common.smalldynarray_init(&waiting_tasks, 1)
+				task_queue.task_waiting_tasks[id] = waiting_tasks
+			}
 
-// 		taskqueue_append(task_queue, task.?)
-// 	}
+			common.smalldynarray_append(&waiting_tasks, task)
+			waiting_count += 1
+		}
+	}
 
-// 	return possible_tasks[best_task_idx].?, true
-// }
+	sync.atomic_store(&task.waiting_count, waiting_count)
+	if waiting_count == 0 {
+		taskqueue_push_ready(task_queue, task)
+	}
+}
 
-// taskqueue_check_waiting_tasks :: proc(task_queue: ^Task_Queue) {
-// 	if sync.mutex_guard(&task_queue.waiting_mutex) {
-// 		now := time.now()
+taskqueue_pop :: proc(task_queue: ^Task_Queue) -> ^common.Arc(Task_Info) {
+	context.allocator = task_queue.allocator
 
-// 		for {
-// 			task, ok := pq.peek_safe(task_queue.waiting_queue)
-// 			if !ok {
-// 				return
-// 			}
+	time_waiting_ready := make([dynamic]^common.Arc(Task_Info))
+	defer delete(time_waiting_ready)
 
-// 			if !taskinfo_can_execute_task_now(task, false, now) {
-// 				return
-// 			}
+	now := time.now()
 
-// 			//TODO(Vicix): This will not deadlock, but I really should improve the API
-// 			taskqueue_append(task_queue, task)
-// 			pq.pop(&task_queue.waiting_queue)
-// 		}
-// 	}
-// }
+	if sync.guard(&task_queue.time_waiting_tasks_mutex) {
+		for {
+			task, ok := pq.peek_safe(task_queue.time_waiting_tasks)
 
-// taskqueue_is_empty :: proc(task_queue: ^Task_Queue) -> bool {
-// 	if sync.mutex_guard(&task_queue.waiting_mutex) {
-// 		if pq.len(task_queue.waiting_queue) > 0 {
-// 			return false
-// 		}
-// 	}
+			if !ok || time.diff(task.resume_time, now) > 0 {
+				break
+			}
 
-// 	for queue, i in task_queue.queues {
-// 		if sync.mutex_guard(&task_queue.mutexes[i]) {
-// 			if pq.len(queue) > 0 {
-// 				return false
-// 			}
-// 		}
-// 	}
+			pq.pop(&task_queue.time_waiting_tasks)
+			append(&time_waiting_ready, task)
+		}
+	}
 
-// 	return true
-// }
+	if sync.guard(&task_queue.ready_tasks_mutex) {
+		for task in time_waiting_ready {
+			queue.push(&task_queue.ready_tasks, task)
+		}
 
-// taskqueue_is_task_present :: proc(task_queue: ^Task_Queue, task_id: Task_Id) -> bool {
-// 	if sync.mutex_guard(&task_queue.waiting_mutex) {
-// 		for task in task_queue.waiting_queue.queue {
-// 			if task.identifier == task_id {
-// 				return true
-// 			}
-// 		}
-// 	}
+		// NOTE(Vicix): task is nil if the queue is empty
+		task, _ := queue.pop_front_safe(&task_queue.ready_tasks)
+		return task
+	}
 
-// 	for queue, i in task_queue.queues {
-// 		if sync.mutex_guard(&task_queue.mutexes[i]) {
-// 			for task in queue.queue {
-// 				if task.identifier == task_id {
-// 					return true
-// 				}
-// 			}
-// 		}
-// 	}
+	// unreachable
+	return nil
+}
 
-// 	return false
-// }
+taskqueue_mark_as_finished :: proc(task_queue: ^Task_Queue, finished_task: Task_Id) {
+	context.allocator = task_queue.allocator
 
-// @(private = "file")
-// prioritylist_swap :: proc(q: []Task_Info, i, j: int) {
-// 	tmp := q[i]
-// 	q[i] = q[j]
-// 	q[j] = tmp
-// }
+	ready_tasks := make([dynamic]^common.Arc(Task_Info))
+	defer delete(ready_tasks)
 
-// @(private = "file")
-// default_prioritylist_less :: proc(a, b: Task_Info) -> bool {
-// 	a_value := time.to_unix_nanoseconds(a.submission_time)
-// 	b_value := time.to_unix_nanoseconds(b.submission_time)
+	if sync.guard(&task_queue.task_waiting_tasks_mutex) {
+		waiting_tasks, ok := task_queue.task_waiting_tasks[finished_task]
 
-// 	if a.last_suspended_execution_time != nil {
-// 		a_value = time.to_unix_nanoseconds(a.last_suspended_execution_time.?)
-// 	}
-// 	if b.last_suspended_execution_time != nil {
-// 		b_value = time.to_unix_nanoseconds(b.last_suspended_execution_time.?)
-// 	}
+		if !ok {
+			return
+		}
 
-// 	return a_value < b_value
-// }
+		i := 0
+		removed_count := 0
+		for {
+			waiting_task := common.smalldynarray_as_slice(waiting_tasks)[i - removed_count]
 
-// @(private = "file")
-// waiting_prioritylist_less :: proc(a, b: Task_Info) -> bool {
-// 	a_value := a.last_suspended_execution_time.?
-// 	b_value := b.last_suspended_execution_time.?
+			// NOTE(Vicix): This isn't a rage condition: the only other part of
+			//              the code that requires a lock on a waiting task is
+			//              when the user fetches the task info. That lock
+			//              does not require any other lock that might cause a 
+			//              dead lock. Tldr: This lock is (currently) safe
+			old_count := sync.atomic_sub(&waiting_task.waiting_count, 1)
+			if old_count == 1 {
+				append(&ready_tasks, waiting_task)
+				common.smalldynarray_remove_index(&waiting_tasks, i)
+				removed_count += 1
+			}
 
-// 	#partial switch v in a.last_result {
-// 	case aec.Task_Result_Sleep:
-// 		a_value = time.time_add(a_value, v.duration)
-// 	case aec.Task_Result_Repeat_After:
-// 		a_value = time.time_add(b_value, v.duration)
-// 	}
+			i += 1
+		}
+	}
 
-// 	#partial switch v in b.last_result {
-// 	case aec.Task_Result_Sleep:
-// 		b_value = time.time_add(b_value, v.duration)
-// 	case aec.Task_Result_Repeat_After:
-// 		b_value = time.time_add(b_value, v.duration)
-// 	}
+	if sync.guard(&task_queue.ready_tasks_mutex) {
+		for ready_task in ready_tasks {
+			queue.push(&task_queue.ready_tasks, ready_task)
+		}
+	}
+}
 
-// 	return time.duration_nanoseconds(time.diff(a_value, b_value)) > 0
-// }
+@(private = "file")
+priorityqueue_less :: proc(a: ^common.Arc(Task_Info), b: ^common.Arc(Task_Info)) -> bool {
+	return time.diff(a.resume_time, b.resume_time) < 0
+}
+
+@(private = "file")
+priorityqueue_swap :: proc(q: []^common.Arc(Task_Info), i: int, j: int) {
+	tmp := q[i]
+	q[i] = q[j]
+	q[j] = tmp
+}
 

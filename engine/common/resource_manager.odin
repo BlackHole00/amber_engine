@@ -33,6 +33,7 @@ import "core:sync"
 //        This allows to skip an hash map lookup.
 //        Inspiration: https://verdagon.dev/blog/generational-references
 // @thread_safety: Thread-safe
+// TODO(Vicix): Fix the code structure... It is a bit of a mess
 //odinfmt: disable
 Resource_Manager :: struct(
 	$T: typeid, 
@@ -118,6 +119,61 @@ resourcemanager_generate_new_empty_and_get :: proc(
 	unreachable()
 }
 
+resourcemanager_reserve_new :: proc(resource_manager: $T/^Resource_Manager($U, $I)) -> I {
+	if sync.guard(&resource_manager.resources_mutex) {
+		resource_id, idx := resourcemanager_generate_id(resource_manager)
+
+		resource_manager.resources[idx].reserved = true
+
+		return resource_id
+	}
+
+	unreachable()
+}
+
+resourcemanager_resolve_reserved_and_get :: proc(
+	resource_manager: $T/^Resource_Manager($U, $I),
+	id: I,
+	resource: U,
+) -> ^Arc(U) {
+	resource_ptr := arc_new(U, resource_manager.allocator)
+	rc_as_ptr(resource_ptr)^ = resource
+
+	number := id_get_number(id)
+	generation := id_get_generation(id)
+
+	if sync.guard(&resource_manager.resources_mutex) {
+		if !resourcemanager_is_id_number_and_generation_valid(
+			   resource_manager,
+			   number,
+			   generation,
+		   ) ||
+		   !resource_manager.resources[number - resource_manager.starting_number].reserved {
+			rc_drop(resource_ptr)
+			return nil
+		}
+
+		resource_manager.resources[number - resource_manager.starting_number].data = resource_ptr
+		return rc_clone(resource_ptr)
+	}
+
+	unreachable()
+}
+
+resourcemanager_resolve_reserved :: proc(
+	resource_manager: $T/^Resource_Manager($U, $I),
+	id: I,
+	data: U,
+) -> bool {
+	ptr := resourcemanager_resolve_reserved_and_get(resource_manager, id, data)
+	if ptr == nil {
+		return false
+	}
+
+	rc_drop(ptr)
+	return true
+}
+
 // Generates a new resource initializes with data and returns its associated 
 // pointer
 // @retuns: I = The generated resource's id
@@ -161,6 +217,7 @@ resourcemanager_is_id_valid :: proc(
 				number,
 				generation,
 			) &&
+			!resource_manager.resources[number - resource_manager.starting_number].reserved &&
 			resource_manager.resources[number - resource_manager.starting_number].data != nil \
 		)
 	}
@@ -181,11 +238,12 @@ resourcemanager_get :: proc(resource_manager: $T/^Resource_Manager($U, $I), id: 
 			   resource_manager,
 			   number,
 			   generation,
-		   ) {
+		   ) ||
+		   resource_manager.resources[number - resource_manager.starting_number].reserved {
 			return nil
 		}
 
-		return resource_manager.resources[number].data
+		return rc_clone(resource_manager.resources[number - resource_manager.starting_number].data)
 	}
 
 	unreachable()
@@ -202,7 +260,8 @@ resourcemanager_remove :: proc(resource_manager: $T/^Resource_Manager($U, $I), i
 			   resource_manager,
 			   number,
 			   generation,
-		   ) {
+		   ) ||
+		   resource_manager.resources[number - resource_manager.starting_number].reserved {
 			return false
 		}
 
@@ -216,7 +275,7 @@ resourcemanager_remove :: proc(resource_manager: $T/^Resource_Manager($U, $I), i
 		}
 
 		i: uint = 0
-		for resource_manager.resources[i].generation > id_get_max_generation(I) {
+		for resource_manager.resources[i].generation > (u32)(id_get_max_generation(I)) {
 			i += 1
 		}
 
@@ -241,7 +300,10 @@ resourcemanager_generate_new_and_get :: proc {
 @(private = "file")
 Resource_Manager_Cell :: struct($T: typeid) {
 	data:       ^Arc(T),
-	generation: uint,
+	// On an i128 the generation is 32 bit. Integer bigger than 128 bits are not
+	// primitives in Odin, thus not supported
+	generation: u32,
+	reserved:   b32,
 }
 
 // @thread_safety: Not thread-safe
@@ -261,7 +323,8 @@ resourcemanager_generate_id :: proc(
 	i := resource_manager.first_free_location + 1
 	for i < len(resource_manager.resources) &&
 	    resource_manager.resources[i].data != nil &&
-	    resource_manager.resources[i].generation <= id_get_max_generation(I) {
+	    !resource_manager.resources[i].reserved &&
+	    resource_manager.resources[i].generation <= (u32)(id_get_max_generation(I)) {
 		i += 1
 	}
 
@@ -295,7 +358,7 @@ resourcemanager_relocate_positions :: proc(
 resourcemanager_is_id_number_and_generation_valid :: proc(
 	resource_manager: $T/^Resource_Manager($U, $I),
 	number: uint,
-	generation: uint,
+	generation: u32,
 ) -> bool {
 	return(
 		resourcemanager_is_id_number_valid(resource_manager, number) &&
@@ -317,7 +380,7 @@ resourcemanager_is_id_number_valid :: proc(
 resourcemanager_is_id_generation_valid :: proc(
 	resource_manager: $T/^Resource_Manager($U, $I),
 	number: uint,
-	generation: uint,
+	generation: u32,
 ) -> bool {
 	return resource_manager.resources[number].generation == generation
 }
@@ -340,20 +403,20 @@ id_get_number_bits :: proc($I: typeid) -> uint where intrinsics.type_is_ordered_
 @(private = "file")
 id_create :: proc(
 	$I: typeid,
-	generation: uint,
+	generation: u32,
 	number: uint,
 ) -> I where intrinsics.type_is_ordered_numeric(I) {
-	return (I)((generation << id_get_generation_bits(I)) | number)
+	return (I)(((uint)(generation) << id_get_generation_bits(I)) | number)
 }
 
 @(private = "file")
-id_get_generation :: proc(id: $I) -> uint {
-	return id >> id_get_number_bits(I)
+id_get_generation :: proc(id: $I) -> u32 {
+	return (u32)(id >> id_get_number_bits(I))
 }
 
 @(private = "file")
 id_get_number :: proc(id: $I) -> uint {
-	return id << id_get_generation_bits(I) >> id_get_generation_bits(I)
+	return (uint)(id << id_get_generation_bits(I) >> id_get_generation_bits(I))
 }
 
 _ :: intrinsics
