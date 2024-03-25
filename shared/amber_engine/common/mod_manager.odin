@@ -1,7 +1,7 @@
 package ae_common
 
 import "core:mem"
-import doc "shared:ae_common/doc_utils"
+import doc "shared:amber_engine/common/doc_utils"
 
 // See `ae_interface/mod_manager.odin`
 Mod_Manager :: doc.Singleton_Symbol

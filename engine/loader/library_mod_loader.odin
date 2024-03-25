@@ -7,20 +7,20 @@ import "core:os"
 import "core:runtime"
 import "core:slice"
 import "core:strings"
-import "engine:common"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
+import "shared:amber_engine/utils"
 
 librarymodloader_init :: proc(mod_loader: ^Mod_Loader) {
 	mod_loader.itable = &LIBRARYMODLOADER_ITABLE
-	mod_loader.name = aec.DEFAULT_LIBRARY_MODLOADER_NAME
+	mod_loader.name = ae.DEFAULT_LIBRARY_MODLOADER_NAME
 	mod_loader.description = "Loads .dll, .so and .dylib files as shared libraries"
-	mod_loader.version = aec.Version{0, 0, 1}
+	mod_loader.version = ae.Version{0, 0, 1}
 }
 
 librarymodloader_free :: proc(mod_loader: Mod_Loader) {}
 
 @(private)
-LIBRARYMODLOADER_ITABLE := aec.Mod_Loader_Proc_Table {
+LIBRARYMODLOADER_ITABLE := ae.Mod_Loader_Proc_Table {
 	init              = librarymodloader_on_init,
 	deinit            = librarymodloader_on_deinit,
 	generate_mod_info = librarymodloader_generate_mod_info,
@@ -35,7 +35,7 @@ LIBRARYMODLOADER_ITABLE := aec.Mod_Loader_Proc_Table {
 Library_Mod_Loader_Data :: struct {
 	allocator:        mem.Allocator,
 	temp_allocator:   mem.Allocator,
-	engine_proctable: ^aec.Proc_Table,
+	engine_proctable: ^ae.Proc_Table,
 	library_modules:  map[Mod_Id]Library_Module,
 	mod_context:      runtime.Context,
 }
@@ -46,10 +46,10 @@ Library_Mod_Info_Data :: struct {
 }
 
 @(private)
-librarymodloader_on_init: aec.Mod_Loader_Init_Proc : proc(
+librarymodloader_on_init: ae.Mod_Loader_Init_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_loader_id: Mod_Loader_Id,
-	engine_proctable: ^aec.Proc_Table,
+	engine_proctable: ^ae.Proc_Table,
 	allocator: mem.Allocator,
 	temp_allocator: mem.Allocator,
 	mod_context: runtime.Context,
@@ -68,7 +68,7 @@ librarymodloader_on_init: aec.Mod_Loader_Init_Proc : proc(
 }
 
 @(private)
-librarymodloader_on_deinit: aec.Mod_Loader_Deinit_Proc : proc(loader: ^Mod_Loader) {
+librarymodloader_on_deinit: ae.Mod_Loader_Deinit_Proc : proc(loader: ^Mod_Loader) {
 	data := (^Library_Mod_Loader_Data)(loader.user_data)
 	context.allocator = data.allocator
 
@@ -77,7 +77,7 @@ librarymodloader_on_deinit: aec.Mod_Loader_Deinit_Proc : proc(loader: ^Mod_Loade
 }
 
 @(private)
-librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc(
+librarymodloader_generate_mod_info: ae.Mod_Loader_Generate_Mod_Info_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_path: string,
 	mod_id: Mod_Id,
@@ -123,7 +123,7 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	dependencies := slice.clone(librarymodule_get_mod_dependencies(library_module))
 	for &dependency in dependencies {
 		dependency.name = strings.clone(dependency.name)
-		if version, version_ok := dependency.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		if version, version_ok := dependency.version.(ae.Mod_Relation_Version_Requirement_Exactly);
 		   version_ok {
 			dependency.version = slice.clone(version)
 		}
@@ -131,7 +131,7 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 	dependants := slice.clone(librarymodule_get_mod_dependants(library_module))
 	for &dependant in dependants {
 		dependant.name = strings.clone(dependant.name)
-		if version, version_ok := dependant.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		if version, version_ok := dependant.version.(ae.Mod_Relation_Version_Requirement_Exactly);
 		   version_ok {
 			dependant.version = slice.clone(version)
 		}
@@ -150,7 +150,7 @@ librarymodloader_generate_mod_info: aec.Mod_Loader_Generate_Mod_Info_Proc : proc
 }
 
 @(private)
-librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
+librarymodloader_free_mod_info: ae.Mod_Loader_Free_Mod_Info_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
 ) {
@@ -166,7 +166,7 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 	delete(mod_info.file_path)
 	for dependency in mod_info.dependencies {
 		delete(dependency.name)
-		if version, version_ok := dependency.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		if version, version_ok := dependency.version.(ae.Mod_Relation_Version_Requirement_Exactly);
 		   version_ok {
 			delete(version)
 		}
@@ -174,7 +174,7 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 	delete(mod_info.dependencies)
 	for dependant in mod_info.dependants {
 		delete(dependant.name)
-		if version, version_ok := dependant.version.(aec.Mod_Relation_Version_Requirement_Exactly);
+		if version, version_ok := dependant.version.(ae.Mod_Relation_Version_Requirement_Exactly);
 		   version_ok {
 			delete(version)
 		}
@@ -183,7 +183,7 @@ librarymodloader_free_mod_info: aec.Mod_Loader_Free_Mod_Info_Proc : proc(
 }
 
 @(private)
-librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
+librarymodloader_can_load_file: ae.Mod_Loader_Can_Load_File_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_path: string,
 ) -> bool {
@@ -195,7 +195,7 @@ librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
 		return false
 	}
 
-	mod_extension := common.file_extension(mod_path)
+	mod_extension := utils.file_extension(mod_path)
 	defer delete(mod_extension)
 
 	when ODIN_OS == .Windows {
@@ -208,7 +208,7 @@ librarymodloader_can_load_file: aec.Mod_Loader_Can_Load_File_Proc : proc(
 }
 
 @(private)
-librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
+librarymodloader_load_mod: ae.Mod_Loader_Load_Mod_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
 ) -> Mod_Loader_Result {
@@ -224,7 +224,7 @@ librarymodloader_load_mod: aec.Mod_Loader_Load_Mod_Proc : proc(
 }
 
 @(private)
-librarymodloader_unload_mod: aec.Mod_Loader_Unload_Mod_Proc : proc(
+librarymodloader_unload_mod: ae.Mod_Loader_Unload_Mod_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
 ) -> Mod_Loader_Result {
@@ -238,7 +238,7 @@ librarymodloader_unload_mod: aec.Mod_Loader_Unload_Mod_Proc : proc(
 }
 
 @(private)
-librarymodloader_get_mod_proctable: aec.Mod_Loader_Get_Mod_ProcTable_Proc : proc(
+librarymodloader_get_mod_proctable: ae.Mod_Loader_Get_Mod_ProcTable_Proc : proc(
 	loader: ^Mod_Loader,
 	mod_info: Mod_Info,
 ) -> rawptr {

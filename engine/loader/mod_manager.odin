@@ -5,16 +5,16 @@ import "core:log"
 import "core:mem"
 import "core:os"
 import "core:runtime"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
 
-Mod_Id :: aec.Mod_Id
-Mod_Info :: aec.Mod_Info
-Mod_Loader_Id :: aec.Mod_Loader_Id
-Mod_Loader :: aec.Mod_Loader
-Mod_Loader_Result :: aec.Mod_Loader_Result
-Mod_Load_Error :: aec.Mod_Load_Error
-Mod_Relation :: aec.Mod_Relation
-Mod_Status :: aec.Mod_Status
+Mod_Id :: ae.Mod_Id
+Mod_Info :: ae.Mod_Info
+Mod_Loader_Id :: ae.Mod_Loader_Id
+Mod_Loader :: ae.Mod_Loader
+Mod_Loader_Result :: ae.Mod_Loader_Result
+Mod_Load_Error :: ae.Mod_Load_Error
+Mod_Relation :: ae.Mod_Relation
+Mod_Status :: ae.Mod_Status
 
 // In reference to `ae_interface:Mod_Manager` and `ae_common/mod_manager.odin`
 Mod_Manager :: struct {
@@ -22,7 +22,7 @@ Mod_Manager :: struct {
 	loader_allocator:          mem.Allocator,
 	loader_temp_allocator:     mem.Allocator,
 	mod_context:               runtime.Context,
-	engine_proctable:          ^aec.Proc_Table,
+	engine_proctable:          ^ae.Proc_Table,
 	// used to generate mod_loader ids
 	incremental_mod_loader_id: Mod_Loader_Id,
 	incremental_mod_id:        Mod_Id,
@@ -34,7 +34,7 @@ Mod_Manager :: struct {
 
 modmanager_init :: proc(
 	mod_manager: ^Mod_Manager,
-	engine_proctable: ^aec.Proc_Table,
+	engine_proctable: ^ae.Proc_Table,
 	loader_allocator: mem.Allocator,
 	loader_temp_allocator: mem.Allocator,
 	mod_context: runtime.Context,
@@ -76,19 +76,19 @@ modmanager_register_modloader :: proc(
 
 	log.infof("Registering Mod_Loader %s (%s)...", mod_loader.name, mod_loader.description)
 
-	if modmanager_get_modloaderid(mod_manager^, mod_loader.name) != aec.INVALID_MODLOADERID {
+	if modmanager_get_modloaderid(mod_manager^, mod_loader.name) != ae.INVALID_MODLOADERID {
 		log.warnf(
 			"Could not register Mod_Loader %s (%s) There is another Mod_Loader with the same name",
 			mod_loader.name,
 			mod_loader.description,
 		)
-		return aec.INVALID_MODLOADERID
+		return ae.INVALID_MODLOADERID
 	}
 
 	mod_loader_id := modmanager_generate_modloaderid(mod_manager)
 
 	log.debugf("Initializing Mod_Loader %s (%s)...", mod_loader.name, mod_loader.description)
-	init_result := aec.modloader_init(
+	init_result := ae.modloader_init(
 		&mod_loader,
 		mod_loader_id,
 		mod_manager.engine_proctable,
@@ -133,9 +133,9 @@ modmanager_register_modloader :: proc(
 		)
 
 		log.debugf("Deinitializing Mod_Loader %s (%s)", mod_loader.name, mod_loader.description)
-		aec.modloader_deinit(&mod_loader)
+		ae.modloader_deinit(&mod_loader)
 
-		return aec.INVALID_MODLOADERID
+		return ae.INVALID_MODLOADERID
 	}
 
 	log.infof(
@@ -169,7 +169,7 @@ modmanager_remove_modloader :: proc(mod_manager: ^Mod_Manager, loader_id: Mod_Lo
 
 	_, loader := delete_key(&mod_manager.mod_loaders, loader_id)
 	log.debugf("Deinitializing Mod_Loader %d", loader_id)
-	aec.modloader_deinit(&loader)
+	ae.modloader_deinit(&loader)
 
 	log.infof("Successfully removed Mod_Loader %d", loader_id)
 
@@ -186,7 +186,7 @@ modmanager_get_modloaderid :: proc(
 		}
 	}
 
-	return aec.INVALID_MODLOADERID
+	return ae.INVALID_MODLOADERID
 }
 
 modmanager_get_modloaderid_for_file :: proc(
@@ -194,12 +194,12 @@ modmanager_get_modloaderid_for_file :: proc(
 	file_name: string,
 ) -> Mod_Loader_Id {
 	for id, &mod_loader in mod_manager.mod_loaders {
-		if aec.modloader_can_load_file(&mod_loader, file_name) {
+		if ae.modloader_can_load_file(&mod_loader, file_name) {
 			return id
 		}
 	}
 
-	return aec.INVALID_MODLOADERID
+	return ae.INVALID_MODLOADERID
 }
 
 modmanager_is_modloaderid_valid :: proc(
@@ -211,7 +211,7 @@ modmanager_is_modloaderid_valid :: proc(
 
 modmanager_can_load_file :: proc(mod_manager: ^Mod_Manager, file_path: string) -> bool {
 	for _, &mod_loader in mod_manager.mod_loaders {
-		if aec.modloader_can_load_file(&mod_loader, file_path) {
+		if ae.modloader_can_load_file(&mod_loader, file_path) {
 			return true
 		}
 	}
@@ -230,13 +230,13 @@ modmanager_queue_load_mod :: proc(
 
 	log.infof("Queueing up loading of mod %s...", file_path)
 
-	if modmanager_get_modid_from_path(mod_manager^, file_path) != aec.INVALID_MODID {
+	if modmanager_get_modid_from_path(mod_manager^, file_path) != ae.INVALID_MODID {
 		log.warnf(
 			"Could not queue loading of mod %s: another mod with the same path has been already registered",
 			file_path,
 		)
 
-		return .Duplicate_Mod, aec.INVALID_MODID
+		return .Duplicate_Mod, ae.INVALID_MODID
 	}
 	if !os.exists(file_path) {
 		log.warnf(
@@ -244,17 +244,17 @@ modmanager_queue_load_mod :: proc(
 			file_path,
 		)
 
-		return .Invalid_Path, aec.INVALID_MODID
+		return .Invalid_Path, ae.INVALID_MODID
 	}
 
 	loader_id := modmanager_get_modloaderid_for_file(mod_manager, file_path)
-	if loader_id == aec.INVALID_MODLOADERID {
+	if loader_id == ae.INVALID_MODLOADERID {
 		log.warnf(
 			"Could not queue loading of mod %s: There is not a valid Mod_Loader for the provided mod file",
 			file_path,
 		)
 
-		return .Invalid_Mod, aec.INVALID_MODID
+		return .Invalid_Mod, ae.INVALID_MODID
 	}
 
 	log.debugf("Queuing loading of %s", file_path)
@@ -262,7 +262,7 @@ modmanager_queue_load_mod :: proc(
 	log.debugf("Obtaining Mod_Info for mod %s", file_path)
 	loader := modmanager_get_modloader(mod_manager, loader_id)
 	mod_id := modmanager_generate_modid(mod_manager)
-	info, error := aec.modloader_generate_mod_info(loader, file_path, mod_id)
+	info, error := ae.modloader_generate_mod_info(loader, file_path, mod_id)
 	switch error {
 	case .Success:
 		log.debugf("Successfully obtained Mod_Info of mod %d (%s)", info.identifier, info.name)
@@ -277,7 +277,7 @@ modmanager_queue_load_mod :: proc(
 			file_path,
 		)
 
-		return .Invalid_Mod, aec.INVALID_MODID
+		return .Invalid_Mod, ae.INVALID_MODID
 	}
 
 	if info.identifier != mod_id {
@@ -290,7 +290,7 @@ modmanager_queue_load_mod :: proc(
 		info.identifier = mod_id
 	}
 
-	if modmanager_get_modid_from_name(mod_manager^, info.name) != aec.INVALID_MODID {
+	if modmanager_get_modid_from_name(mod_manager^, info.name) != ae.INVALID_MODID {
 		log.warnf(
 			"Could not queue loading of mod %d (%s): another mod with the same name has already been registered",
 			info.identifier,
@@ -299,7 +299,7 @@ modmanager_queue_load_mod :: proc(
 
 		info.status = .Errored
 		modmanager_remove_mod(mod_manager, info)
-		return .Duplicate_Mod, aec.INVALID_MODID
+		return .Duplicate_Mod, ae.INVALID_MODID
 	}
 
 	info.status = .Queued_For_Loading
@@ -436,7 +436,7 @@ modmanager_get_mod_proctable :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) 
 	}
 
 	mod_loader := modmanager_get_modloader(mod_manager, mod_id)
-	return aec.modloader_get_mod_proctable(mod_loader, mod_info)
+	return ae.modloader_get_mod_proctable(mod_loader, mod_info)
 }
 
 modmanager_get_modinfo :: proc(mod_manager: ^Mod_Manager, mod_id: Mod_Id) -> (Mod_Info, bool) {
@@ -460,7 +460,7 @@ modmanager_get_modid_from_name :: proc(mod_manager: Mod_Manager, name: string) -
 		}
 	}
 
-	return aec.INVALID_MODID
+	return ae.INVALID_MODID
 }
 
 modmanager_get_modid_from_path :: proc(mod_manager: Mod_Manager, path: string) -> Mod_Id {
@@ -470,7 +470,7 @@ modmanager_get_modid_from_path :: proc(mod_manager: Mod_Manager, path: string) -
 		}
 	}
 
-	return aec.INVALID_MODID
+	return ae.INVALID_MODID
 }
 
 modmanager_is_modid_valid :: proc(mod_manager: Mod_Manager, mod_id: Mod_Id) -> bool {
@@ -562,7 +562,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 	for _, mod_info in mod_manager.mod_infos {
 		for dependency in mod_info.dependencies {
 			dependency_id := modmanager_get_modid_from_name(mod_manager^, dependency.name)
-			if dependency_id == aec.INVALID_MODID {
+			if dependency_id == ae.INVALID_MODID {
 				continue
 			}
 
@@ -571,7 +571,7 @@ reload_loaded_mods_order :: proc(mod_manager: ^Mod_Manager) {
 
 		for dependant in mod_info.dependants {
 			dependant_id := modmanager_get_modid_from_name(mod_manager^, dependant.name)
-			if dependant_id == aec.INVALID_MODID {
+			if dependant_id == ae.INVALID_MODID {
 				continue
 			}
 
@@ -641,7 +641,7 @@ modmanager_call_mod_init :: proc(
 	log.infof("Loading mod %d (%s)...", info.identifier, info.name)
 	info.status = .Loading
 
-	load_res := aec.modloader_load_mod(
+	load_res := ae.modloader_load_mod(
 		modmanager_get_modloader(mod_manager, mod_id),
 		mod_manager.mod_infos[mod_id],
 	)
@@ -679,7 +679,7 @@ modmanager_call_mod_deinit :: proc(
 	log.infof("Unloading mod %d (%s)...", info.identifier, info.name)
 	info.status = .Unloading
 
-	unload_res := aec.modloader_unload_mod(modmanager_get_modloader(mod_manager, mod_id), info^)
+	unload_res := ae.modloader_unload_mod(modmanager_get_modloader(mod_manager, mod_id), info^)
 
 	switch unload_res {
 	case .Success:
@@ -733,7 +733,7 @@ modmanager_remove_mod :: proc {
 modmanager_free_mod_info_by_value :: proc(mod_manager: ^Mod_Manager, mod_info: Mod_Info) {
 	context.allocator = mod_manager.allocator
 
-	aec.modloader_free_mod_info(&mod_manager.mod_loaders[mod_info.loader], mod_info)
+	ae.modloader_free_mod_info(&mod_manager.mod_loaders[mod_info.loader], mod_info)
 	delete_key(&mod_manager.mod_infos, mod_info.identifier)
 }
 
@@ -742,7 +742,7 @@ modmanager_free_mod_info_by_modid :: proc(mod_manager: ^Mod_Manager, mod_id: Mod
 	context.allocator = mod_manager.allocator
 
 	_, mod_info := delete_key(&mod_manager.mod_infos, mod_id)
-	aec.modloader_free_mod_info(&mod_manager.mod_loaders[mod_info.loader], mod_info)
+	ae.modloader_free_mod_info(&mod_manager.mod_loaders[mod_info.loader], mod_info)
 }
 
 @(private)

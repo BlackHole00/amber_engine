@@ -6,15 +6,15 @@ import "core:mem/virtual"
 import "core:slice"
 import "core:strings"
 import "core:sync"
-import "engine:common"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
+import "shared:amber_engine/utils"
 
-Namespace_Id :: aec.Namespace_Id
+Namespace_Id :: ae.Namespace_Id
 
 @(private)
-ODIN_NAMESPACE_NAMES := aec.ODIN_NAMESPACE_NAMES
+ODIN_NAMESPACE_NAMES := ae.ODIN_NAMESPACE_NAMES
 @(private)
-AMBER_ENGINE_NAMESPACE_NAMES := aec.AMBER_ENGINE_NAMESPACE_NAMES
+AMBER_ENGINE_NAMESPACE_NAMES := ae.AMBER_ENGINE_NAMESPACE_NAMES
 
 ODIN_NAMESPACE :: (Namespace_Id)(0)
 AMBER_ENGINE_NAMESPACE :: (Namespace_Id)(1)
@@ -25,7 +25,7 @@ namespace_manager: struct {
 	// Used for general-purpose allocations
 	allocator:              mem.Allocator,
 	arena:                  virtual.Arena,
-	namespace_id_generator: common.Id_Generator(Namespace_Id),
+	namespace_id_generator: utils.Id_Generator(Namespace_Id),
 	// Should be [dynamic][dynamic]string, but since the dynamic vector does 
 	// have an internal allocator and most entries have only one element it 
 	// would be a waste of memory
@@ -62,13 +62,13 @@ deinit :: proc() {
 register_namespace :: proc(namespace: string, location := #caller_location) -> Namespace_Id {
 	context.allocator = namespace_manager.allocator
 
-	if id := find_namespace(namespace); id != aec.INVALID_NAMESPACE_ID {
+	if id := find_namespace(namespace); id != ae.INVALID_NAMESPACE_ID {
 		log.warnf(
 			"Could not register namespace %s: The namespace %d has the same identifier string",
 			namespace,
 			id,
 		)
-		return aec.INVALID_NAMESPACE_ID
+		return ae.INVALID_NAMESPACE_ID
 	}
 
 	names_slice := string_to_slice(namespace)
@@ -104,7 +104,7 @@ register_namespace_alias :: proc(
 }
 
 is_namespace_valid :: proc(namespace: Namespace_Id) -> bool {
-	return common.idgenerator_is_id_valid(&namespace_manager.namespace_id_generator, namespace)
+	return utils.idgenerator_is_id_valid(&namespace_manager.namespace_id_generator, namespace)
 }
 
 get_namespace_names :: proc(
@@ -154,7 +154,7 @@ find_namespace :: proc(namespace: string) -> Namespace_Id {
 		}
 	}
 
-	return aec.INVALID_NAMESPACE_ID
+	return ae.INVALID_NAMESPACE_ID
 }
 
 @(private)
@@ -200,7 +200,7 @@ get_next_namespace_id :: #force_inline proc() -> Namespace_Id {
 // @thread_safety: NOT Thread-safe
 @(private)
 register_names_slice :: proc(names_slice: []string) -> Namespace_Id {
-	namespace_id := common.idgenerator_generate(&namespace_manager.namespace_id_generator)
+	namespace_id := utils.idgenerator_generate(&namespace_manager.namespace_id_generator)
 	append(&namespace_manager.namespaces, names_slice)
 
 	return namespace_id

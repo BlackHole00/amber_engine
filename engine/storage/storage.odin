@@ -6,7 +6,7 @@ import "core:log"
 import "core:math"
 import "core:mem"
 import "core:sync"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
 
 @(private)
 BYTES_PER_LOCATION :: size_of(u32) // 4
@@ -18,11 +18,11 @@ Location_Status :: enum u32 {
 	Occupied = 1,
 }
 
-Resource_Type_Id :: aec.Resource_Type_Id
-Resource_Id :: aec.Resource_Id
+Resource_Type_Id :: ae.Resource_Type_Id
+Resource_Id :: ae.Resource_Id
 
 Resource_Type_Info :: struct {
-	using info:   aec.Resource_Type_Info,
+	using info:   ae.Resource_Type_Info,
 	// size in 4 bytes location. For example:
 	//     - 32 bits = 4 bytes => 1 location
 	//     - 48 bits = 6 bytes => 2 locations
@@ -30,7 +30,7 @@ Resource_Type_Info :: struct {
 }
 
 Resource_Info :: struct {
-	using info: aec.Resource_Info,
+	using info: ae.Resource_Info,
 	// @index_of: Storage.resource_buffer
 	location:   uint,
 	size:       uint,
@@ -96,7 +96,7 @@ storage_register_resource_type :: proc(
 				type_name,
 				location = location,
 			)
-			return aec.INVALID_RESOURCE_TYPE_ID
+			return ae.INVALID_RESOURCE_TYPE_ID
 		}
 
 		resource_type_id = storage_get_current_resource_type_id(storage^)
@@ -124,7 +124,7 @@ storage_add_resource :: proc(
 				resource_type,
 				location = location,
 			)
-			return aec.INVALID_REOSURCE_ID
+			return ae.INVALID_REOSURCE_ID
 		}
 
 		aligned_size = storage_get_resource_type_info_unsafe(storage^, resource_type).aligned_size
@@ -319,9 +319,9 @@ storage_get_resource_info :: proc(
 storage_get_registered_types_info_list :: proc(
 	storage: ^Storage,
 	allocator: mem.Allocator,
-) -> []aec.Resource_Type_Info {
+) -> []ae.Resource_Type_Info {
 	if sync.guard(&storage.resource_types_mutex) {
-		list := make([dynamic]aec.Resource_Type_Info)
+		list := make([dynamic]ae.Resource_Type_Info)
 
 		for type in storage.resource_types {
 			append(&list, type.info)

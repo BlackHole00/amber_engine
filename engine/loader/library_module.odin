@@ -6,14 +6,14 @@ import "core:mem"
 import "core:os"
 import "core:runtime"
 import "core:strings"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
 
 Library_Module :: struct {
 	allocator:       mem.Allocator,
 	library_path:    string,
 	library_handle:  dynlib.Library,
-	mod_export_data: ^aec.Mod_Export_Data,
-	mod_import_data: ^aec.Mod_Import_Data,
+	mod_export_data: ^ae.Mod_Export_Data,
+	mod_import_data: ^ae.Mod_Import_Data,
 }
 
 Library_Module_Result :: enum {
@@ -45,7 +45,7 @@ librarymodule_free :: proc(module: ^Library_Module) -> bool {
 
 librarymodule_load_library :: proc(
 	module: ^Library_Module,
-	engine_proctable: ^aec.Proc_Table,
+	engine_proctable: ^ae.Proc_Table,
 	mod_context: runtime.Context,
 ) -> (
 	result: Library_Module_Result,
@@ -110,7 +110,7 @@ librarymodule_get_mod_name :: proc(module: Library_Module) -> string {
 	return module.mod_export_data.name
 }
 
-librarymodule_get_version :: proc(module: Library_Module) -> aec.Version {
+librarymodule_get_version :: proc(module: Library_Module) -> ae.Version {
 	return module.mod_export_data.version
 }
 
@@ -129,8 +129,8 @@ librarymodule_check_default_symbols :: proc(module: Library_Module) -> (res: Mod
 		log.errorf(
 			"The Library_Module %s has the symbols %s and %s pointed to the same address",
 			module.library_path,
-			aec.MOD_IMPORT_DATA_SYMBOL_NAME,
-			aec.MOD_EXPORT_DATA_SYMBOL_NAME,
+			ae.MOD_IMPORT_DATA_SYMBOL_NAME,
+			ae.MOD_EXPORT_DATA_SYMBOL_NAME,
 		)
 		return .Error
 	}
@@ -190,7 +190,7 @@ librarymodule_call_deinit :: proc(module: Library_Module) {
 @(private)
 librarymodule_set_mod_imported_data :: proc(
 	module: Library_Module,
-	engine_proctable: ^aec.Proc_Table,
+	engine_proctable: ^ae.Proc_Table,
 	mod_context: runtime.Context,
 ) {
 	module.mod_import_data.engine_proctable = engine_proctable
@@ -202,18 +202,18 @@ librarymodule_search_default_symbols :: proc(module: ^Library_Module) -> (ok: bo
 
 	if import_symbol_address := librarymodule_search_symbol(
 		module^,
-		aec.MOD_IMPORT_DATA_SYMBOL_NAME,
+		ae.MOD_IMPORT_DATA_SYMBOL_NAME,
 	); import_symbol_address != nil {
-		module.mod_import_data = (^aec.Mod_Import_Data)(import_symbol_address)
+		module.mod_import_data = (^ae.Mod_Import_Data)(import_symbol_address)
 	} else {
 		ok = false
 	}
 
 	if export_symbol_address := librarymodule_search_symbol(
 		module^,
-		aec.MOD_EXPORT_DATA_SYMBOL_NAME,
+		ae.MOD_EXPORT_DATA_SYMBOL_NAME,
 	); export_symbol_address != nil {
-		module.mod_export_data = (^aec.Mod_Export_Data)(export_symbol_address)
+		module.mod_export_data = (^ae.Mod_Export_Data)(export_symbol_address)
 	} else {
 		ok = false
 	}

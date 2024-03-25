@@ -1,14 +1,14 @@
 package amber_engine_config
 
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
 
-VERSION :: aec.Version {
+VERSION :: ae.Version {
 	major    = 0,
 	minor    = 1,
 	revision = 0,
 }
 
-get_version: aec.Get_Version_Proc : proc() -> aec.Version {
+get_version: ae.Get_Version_Proc : proc() -> ae.Version {
 	return VERSION
 }
 

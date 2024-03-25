@@ -6,23 +6,23 @@ import "core:mem/virtual"
 import "core:reflect"
 import "core:slice"
 import "core:sync"
-import "engine:common"
 import "engine:namespace_manager"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
+import "shared:amber_engine/utils"
 
-Type_Id :: aec.Type_Id
-Lower_Type_Id_Section :: aec.Lower_Type_Id_Section
-Type_Descriptor :: aec.Type_Descriptor
-Any :: aec.Any
+Type_Id :: ae.Type_Id
+Lower_Type_Id_Section :: ae.Lower_Type_Id_Section
+Type_Descriptor :: ae.Type_Descriptor
+Any :: ae.Any
 
-namespace_of :: aec.typemanager_namespace_of
+namespace_of :: ae.typemanager_namespace_of
 
 @(private)
 type_manager: struct {
 	allocator:         mem.Allocator,
 	arena:             virtual.Arena,
-	type_id_generator: common.Id_Generator(Lower_Type_Id_Section),
-	types:             [dynamic]^aec.Type_Info,
+	type_id_generator: utils.Id_Generator(Lower_Type_Id_Section),
+	types:             [dynamic]^ae.Type_Info,
 	types_mutex:       sync.Mutex,
 }
 
@@ -35,7 +35,7 @@ init :: proc(allocator := context.allocator) {
 		"Could not create an arena",
 	)
 
-	type_manager.types = make([dynamic]^aec.Type_Info)
+	type_manager.types = make([dynamic]^ae.Type_Info)
 
 	register_builtin_types()
 }
@@ -52,32 +52,32 @@ register_type_by_descriptor :: proc(
 	location := #caller_location,
 ) -> Type_Id {
 	if is_descriptor_already_registered(type) {
-		namespace := aec.namespacedstring_get_namespace(type.name)
+		namespace := ae.namespacedstring_get_namespace(type.name)
 
 		log.warnf(
 			"Could not register type %s.%s: It a type with the same name already exists",
 			namespace_manager.get_first_namespace_name(namespace),
-			aec.namespacedstring_as_string(type.name),
+			ae.namespacedstring_as_string(type.name),
 			location = location,
 		)
 
-		return aec.INVALID_TYPE_ID
+		return ae.INVALID_TYPE_ID
 	}
 
 	context.allocator = type_manager.allocator
 
 	if sync.guard(&type_manager.types_mutex) {
-		idx := common.idgenerator_generate(&type_manager.type_id_generator)
+		idx := utils.idgenerator_generate(&type_manager.type_id_generator)
 		id := Type_Id {
 			compound =  {
-				namespace = aec.namespacedstring_get_namespace(type.name),
+				namespace = ae.namespacedstring_get_namespace(type.name),
 				type = (Lower_Type_Id_Section)(idx),
 			},
 		}
 
-		new_descriptor := new(aec.Type_Info, arena_allocator())
+		new_descriptor := new(ae.Type_Info, arena_allocator())
 		new_descriptor.base = type
-		new_descriptor.name = aec.namespacedstring_clone(type.name, arena_allocator())
+		new_descriptor.name = ae.namespacedstring_clone(type.name, arena_allocator())
 		new_descriptor.identifier = id
 
 		append(&type_manager.types, new_descriptor)
@@ -88,29 +88,29 @@ register_type_by_descriptor :: proc(
 }
 
 is_type_valid :: proc(type: Type_Id) -> bool {
-	if !common.idgenerator_is_id_valid(&type_manager.type_id_generator, type.type) {
+	if !utils.idgenerator_is_id_valid(&type_manager.type_id_generator, type.type) {
 		return false
 	}
 
 	if sync.guard(&type_manager.types_mutex) {
-		return aec.namespacedstring_get_namespace(get_typeinfo_unsafe(type).name) == type.namespace
+		return ae.namespacedstring_get_namespace(get_typeinfo_unsafe(type).name) == type.namespace
 	}
 	unreachable()
 }
 
-find_type_by_name :: proc(name: aec.Namespaced_String) -> Type_Id {
+find_type_by_name :: proc(name: ae.Namespaced_String) -> Type_Id {
 	sync.guard(&type_manager.types_mutex)
 
 	for type, i in type_manager.types {
-		if aec.namespacedstring_compare(type.name, name) {
+		if ae.namespacedstring_compare(type.name, name) {
 			return index_to_typeid(i)
 		}
 	}
 
-	return aec.INVALID_TYPE_ID
+	return ae.INVALID_TYPE_ID
 }
 
-get_typeinfo :: proc(type: Type_Id, location := #caller_location) -> ^aec.Type_Info {
+get_typeinfo :: proc(type: Type_Id, location := #caller_location) -> ^ae.Type_Info {
 	if !is_type_valid(type) {
 		log.warn(
 			"Could not get type info of type %d: The type is not valid",
@@ -126,7 +126,7 @@ get_typeinfo :: proc(type: Type_Id, location := #caller_location) -> ^aec.Type_I
 	unreachable()
 }
 
-get_typeinfo_list :: proc(allocator := context.temp_allocator) -> []^aec.Type_Info {
+get_typeinfo_list :: proc(allocator := context.temp_allocator) -> []^ae.Type_Info {
 	sync.guard(&type_manager.types_mutex)
 
 	return slice.clone(type_manager.types[:], allocator)
@@ -135,7 +135,7 @@ get_typeinfo_list :: proc(allocator := context.temp_allocator) -> []^aec.Type_In
 // @note: use ONLY with the engine types. DO NOT use with mod typeids
 register_type :: proc(
 	$T: typeid,
-	namespace: aec.Namespace_Id,
+	namespace: ae.Namespace_Id,
 	location := #caller_location,
 ) -> Type_Id {
 	if !namespace_manager.is_namespace_valid(namespace) {
@@ -145,10 +145,10 @@ register_type :: proc(
 			type_id,
 			location = location,
 		)
-		return aec.INVALID_TYPE_ID
+		return ae.INVALID_TYPE_ID
 	}
 
-	name := aec.string_as_namespacedstring(namespace, get_name_of_odin_typeid(T))
+	name := ae.string_as_namespacedstring(namespace, get_name_of_odin_typeid(T))
 	return register_type_by_descriptor(
 		Type_Descriptor{name = name, size = size_of(T), align = align_of(T)},
 		location,
@@ -156,7 +156,7 @@ register_type :: proc(
 }
 
 typeid_of_odin_type :: proc(
-	namespace: aec.Namespace_Id,
+	namespace: ae.Namespace_Id,
 	$T: typeid,
 	location := #caller_location,
 ) -> Type_Id {
@@ -167,10 +167,10 @@ typeid_of_odin_type :: proc(
 			type_id,
 			location = location,
 		)
-		return aec.INVALID_TYPE_ID
+		return ae.INVALID_TYPE_ID
 	}
 
-	name := aec.string_as_namespacedstring(namespace, get_name_of_odin_typeid(T))
+	name := ae.string_as_namespacedstring(namespace, get_name_of_odin_typeid(T))
 	return find_type_by_name(name)
 }
 
@@ -186,7 +186,7 @@ name_of_type :: proc(
 	type: Type_Id,
 	location := #caller_location,
 ) -> (
-	aec.Namespaced_String,
+	ae.Namespaced_String,
 	bool,
 ) #optional_ok {
 	return get_typeinfo(type, location).name, true
@@ -195,7 +195,7 @@ name_of_type :: proc(
 any_of :: proc(type: Type_Id, data: ^$T) -> Any {
 	if !is_type_valid(type.namespace) {
 		log.errorf("Could not create Any of type %d: The provided type is not valid", type.full_id)
-		return Any{type = aec.INVALID_TYPE_ID}
+		return Any{type = ae.INVALID_TYPE_ID}
 	}
 
 	return Any{type = type, data = data}
@@ -203,21 +203,21 @@ any_of :: proc(type: Type_Id, data: ^$T) -> Any {
 
 @(private)
 register_builtin_types :: proc() {
-	odin_namespace := namespace_manager.find_namespace(aec.ODIN_NAMESPACE_NAMES[0])
-	assert(odin_namespace != aec.INVALID_NAMESPACE_ID)
+	odin_namespace := namespace_manager.find_namespace(ae.ODIN_NAMESPACE_NAMES[0])
+	assert(odin_namespace != ae.INVALID_NAMESPACE_ID)
 
-	assert(register_type(u8, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(u16, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(u32, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(u64, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(i8, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(i16, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(i32, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(i64, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(f32, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(f64, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(string, odin_namespace) != aec.INVALID_TYPE_ID)
-	assert(register_type(cstring, odin_namespace) != aec.INVALID_TYPE_ID)
+	assert(register_type(u8, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(u16, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(u32, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(u64, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(i8, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(i16, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(i32, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(i64, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(f32, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(f64, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(string, odin_namespace) != ae.INVALID_TYPE_ID)
+	assert(register_type(cstring, odin_namespace) != ae.INVALID_TYPE_ID)
 }
 
 @(private)
@@ -228,12 +228,12 @@ arena_allocator :: #force_inline proc() -> mem.Allocator {
 // @thread_safety: Thread-safe
 @(private)
 is_descriptor_already_registered :: proc(type: Type_Descriptor) -> bool {
-	return find_type_by_name(type.name) != aec.INVALID_TYPE_ID
+	return find_type_by_name(type.name) != ae.INVALID_TYPE_ID
 }
 
 // @thread_safety: NOT Thread-safe
 @(private)
-get_typeinfo_unsafe :: proc(type: Type_Id) -> ^aec.Type_Info {
+get_typeinfo_unsafe :: proc(type: Type_Id) -> ^ae.Type_Info {
 	return type_manager.types[typeid_to_index(type)]
 }
 
@@ -244,7 +244,7 @@ index_to_typeid :: proc(idx: int) -> Type_Id {
 		Type_Id {
 			compound =  {
 				type = (Lower_Type_Id_Section)(idx),
-				namespace = aec.namespacedstring_get_namespace(type_manager.types[idx].name),
+				namespace = ae.namespacedstring_get_namespace(type_manager.types[idx].name),
 			},
 		} \
 	)

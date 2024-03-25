@@ -3,7 +3,6 @@ package main
 import "base:intrinsics"
 import "core:log"
 import "core:time"
-import "engine:common"
 import "engine:config"
 import "engine:globals"
 import "engine:interface"
@@ -13,14 +12,15 @@ import "engine:scheduler"
 import hacks "engine:scheduler/utils"
 import "engine:storage"
 import "engine:type_manager"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
+import "shared:amber_engine/utils"
 
 _ :: log
 _ :: scheduler
-_ :: aec
+_ :: ae
 _ :: interface
 _ :: config
-_ :: common
+_ :: utils
 _ :: loader
 _ :: globals
 _ :: hacks
@@ -30,8 +30,8 @@ _ :: namespace_manager
 _ :: type_manager
 
 main :: proc() {
-	context = common.default_context()
-	defer common.default_context_deinit()
+	context = utils.default_context()
+	defer utils.default_context_deinit()
 
 	log.infof(
 		"Initializing Amber Engine ver.%d.%drev%d",
@@ -54,7 +54,7 @@ main :: proc() {
 	assert(namespace_manager.find_namespace("base") == 0)
 	assert(namespace_manager.find_namespace("amber_engine") == 1)
 	assert(namespace_manager.find_namespace("ae") == 1)
-	assert(namespace_manager.find_namespace("error") == aec.INVALID_NAMESPACE_ID)
+	assert(namespace_manager.find_namespace("error") == ae.INVALID_NAMESPACE_ID)
 
 	type_manager.init()
 	defer type_manager.deinit()

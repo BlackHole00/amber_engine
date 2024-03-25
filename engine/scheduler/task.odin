@@ -5,16 +5,16 @@ import "core:slice"
 import "core:sync"
 import "core:time"
 import "engine:scheduler/utils"
-import aec "shared:ae_common"
+import ae "shared:amber_engine/common"
 
-Task_Id :: aec.Task_Id
-Task_Descriptor :: aec.Task_Descriptor
-Task_Data :: aec.Task_Data
+Task_Id :: ae.Task_Id
+Task_Descriptor :: ae.Task_Descriptor
+Task_Data :: ae.Task_Data
 
 // @thread_safety: The field status is atomic. Every other read or write needs
 //                 to lock the mutex
 Task_Info :: struct {
-	using base:          aec.Task_Info,
+	using base:          ae.Task_Info,
 	implementation_data: Task_Implementation_Data,
 	scheduler_allocator: mem.Allocator,
 	procedure_context:   utils.Procedure_Context,
@@ -30,12 +30,12 @@ taskinfo_from_taskdescriptor :: proc(
 	task_info: ^Task_Info,
 	task_descriptor: Task_Descriptor,
 	task_identifier: Task_Id,
-	now := aec.INVALID_TIME,
+	now := ae.INVALID_TIME,
 	allocator := context.allocator,
 ) {
 	now := now
 
-	if now == aec.INVALID_TIME {
+	if now == ae.INVALID_TIME {
 		now = time.now()
 	}
 
@@ -48,18 +48,18 @@ taskinfo_from_taskdescriptor :: proc(
 	task_info.implementation_data.scheduler_allocator = allocator
 }
 
-taskinfo_clone_to_aec :: proc(
+taskinfo_clone_to_ae :: proc(
 	task_info: ^Task_Info,
-	aec_info: ^aec.Task_Info,
+	ae_info: ^ae.Task_Info,
 	allocator := context.allocator,
 ) {
 	sync.guard(&task_info.mutex)
 
-	aec_info^ = task_info.base
+	ae_info^ = task_info.base
 
-	aec_info.status = sync.atomic_load(&task_info.status)
+	ae_info.status = sync.atomic_load(&task_info.status)
 	if task_info.return_value != nil {
-		aec_info.return_value = slice.clone(task_info.return_value, allocator)
+		ae_info.return_value = slice.clone(task_info.return_value, allocator)
 	}
 }
 

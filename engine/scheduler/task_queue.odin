@@ -5,15 +5,15 @@ import "core:container/queue"
 import "core:mem"
 import "core:sync"
 import "core:time"
-import "engine:common"
+import "shared:amber_engine/utils"
 
 Task_Queue :: struct {
 	allocator:                mem.Allocator,
-	ready_tasks:              queue.Queue(^common.Arc(Task_Info)),
+	ready_tasks:              queue.Queue(^utils.Arc(Task_Info)),
 	ready_tasks_mutex:        sync.Mutex,
-	time_waiting_tasks:       pq.Priority_Queue(^common.Arc(Task_Info)),
+	time_waiting_tasks:       pq.Priority_Queue(^utils.Arc(Task_Info)),
 	time_waiting_tasks_mutex: sync.Mutex,
-	task_waiting_tasks:       map[Task_Id]common.Small_Dyn_Array(^common.Arc(Task_Info)),
+	task_waiting_tasks:       map[Task_Id]utils.Small_Dyn_Array(^utils.Arc(Task_Info)),
 	task_waiting_tasks_mutex: sync.Mutex,
 }
 
@@ -24,18 +24,16 @@ taskqueue_init :: proc(task_queue: ^Task_Queue, allocator := context.allocator) 
 	queue.init(&task_queue.ready_tasks)
 	pq.init(&task_queue.time_waiting_tasks, priorityqueue_less, priorityqueue_swap)
 
-	task_queue.task_waiting_tasks = make(
-		map[Task_Id]common.Small_Dyn_Array(^common.Arc(Task_Info)),
-	)
+	task_queue.task_waiting_tasks = make(map[Task_Id]utils.Small_Dyn_Array(^utils.Arc(Task_Info)))
 }
 
-taskqueue_push_ready :: proc(task_queue: ^Task_Queue, task: ^common.Arc(Task_Info)) {
+taskqueue_push_ready :: proc(task_queue: ^Task_Queue, task: ^utils.Arc(Task_Info)) {
 	sync.guard(&task_queue.ready_tasks_mutex)
 
 	queue.push(&task_queue.ready_tasks, task)
 }
 
-taskqueue_push_time_waiting :: proc(task_queue: ^Task_Queue, task: ^common.Arc(Task_Info)) {
+taskqueue_push_time_waiting :: proc(task_queue: ^Task_Queue, task: ^utils.Arc(Task_Info)) {
 	sync.guard(&task_queue.ready_tasks_mutex)
 
 	pq.push(&task_queue.time_waiting_tasks, task)
@@ -43,7 +41,7 @@ taskqueue_push_time_waiting :: proc(task_queue: ^Task_Queue, task: ^common.Arc(T
 
 taskqueue_push_task_waiting :: proc(
 	task_queue: ^Task_Queue,
-	task: ^common.Arc(Task_Info),
+	task: ^utils.Arc(Task_Info),
 	awaits: []Task_Id,
 ) {
 	context.allocator = task_queue.allocator
@@ -58,11 +56,11 @@ taskqueue_push_task_waiting :: proc(
 
 		for id in awaits {
 			// Check if a task is finished or invalid.
-			task_info := common.resourcemanager_get(&scheduler.task_manager, id)
+			task_info := utils.resourcemanager_get(&scheduler.task_manager, id)
 			if task_info == nil {
 				continue
 			}
-			defer common.rc_drop(task_info)
+			defer utils.rc_drop(task_info)
 
 			if sync.atomic_load(&task_info.status) == .Finished {
 				continue
@@ -70,11 +68,11 @@ taskqueue_push_task_waiting :: proc(
 
 			waiting_tasks, ok := task_queue.task_waiting_tasks[id]
 			if !ok {
-				common.smalldynarray_init(&waiting_tasks, 1)
+				utils.smalldynarray_init(&waiting_tasks, 1)
 				task_queue.task_waiting_tasks[id] = waiting_tasks
 			}
 
-			common.smalldynarray_append(&waiting_tasks, task)
+			utils.smalldynarray_append(&waiting_tasks, task)
 			waiting_count += 1
 		}
 	}
@@ -85,10 +83,10 @@ taskqueue_push_task_waiting :: proc(
 	}
 }
 
-taskqueue_pop :: proc(task_queue: ^Task_Queue) -> ^common.Arc(Task_Info) {
+taskqueue_pop :: proc(task_queue: ^Task_Queue) -> ^utils.Arc(Task_Info) {
 	context.allocator = task_queue.allocator
 
-	time_waiting_ready := make([dynamic]^common.Arc(Task_Info))
+	time_waiting_ready := make([dynamic]^utils.Arc(Task_Info))
 	defer delete(time_waiting_ready)
 
 	now := time.now()
@@ -123,7 +121,7 @@ taskqueue_pop :: proc(task_queue: ^Task_Queue) -> ^common.Arc(Task_Info) {
 taskqueue_mark_as_finished :: proc(task_queue: ^Task_Queue, finished_task: Task_Id) {
 	context.allocator = task_queue.allocator
 
-	ready_tasks := make([dynamic]^common.Arc(Task_Info))
+	ready_tasks := make([dynamic]^utils.Arc(Task_Info))
 	defer delete(ready_tasks)
 
 	if sync.guard(&task_queue.task_waiting_tasks_mutex) {
@@ -136,7 +134,7 @@ taskqueue_mark_as_finished :: proc(task_queue: ^Task_Queue, finished_task: Task_
 		i := 0
 		removed_count := 0
 		for {
-			waiting_task := common.smalldynarray_as_slice(waiting_tasks)[i - removed_count]
+			waiting_task := utils.smalldynarray_as_slice(waiting_tasks)[i - removed_count]
 
 			// NOTE(Vicix): This isn't a rage condition: the only other part of
 			//              the code that requires a lock on a waiting task is
@@ -146,7 +144,7 @@ taskqueue_mark_as_finished :: proc(task_queue: ^Task_Queue, finished_task: Task_
 			old_count := sync.atomic_sub(&waiting_task.waiting_count, 1)
 			if old_count == 1 {
 				append(&ready_tasks, waiting_task)
-				common.smalldynarray_remove_index(&waiting_tasks, i)
+				utils.smalldynarray_remove_index(&waiting_tasks, i)
 				removed_count += 1
 			}
 
@@ -162,12 +160,12 @@ taskqueue_mark_as_finished :: proc(task_queue: ^Task_Queue, finished_task: Task_
 }
 
 @(private = "file")
-priorityqueue_less :: proc(a: ^common.Arc(Task_Info), b: ^common.Arc(Task_Info)) -> bool {
+priorityqueue_less :: proc(a: ^utils.Arc(Task_Info), b: ^utils.Arc(Task_Info)) -> bool {
 	return time.diff(a.resume_time, b.resume_time) < 0
 }
 
 @(private = "file")
-priorityqueue_swap :: proc(q: []^common.Arc(Task_Info), i: int, j: int) {
+priorityqueue_swap :: proc(q: []^utils.Arc(Task_Info), i: int, j: int) {
 	tmp := q[i]
 	q[i] = q[j]
 	q[j] = tmp
