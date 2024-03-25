@@ -4,8 +4,8 @@ import "core:mem"
 import "core:slice"
 import "core:sync"
 import "core:time"
-import "engine:scheduler/utils"
 import ae "shared:amber_engine/common"
+import "shared:amber_engine/utils/procedures"
 
 Task_Id :: ae.Task_Id
 Task_Descriptor :: ae.Task_Descriptor
@@ -17,7 +17,7 @@ Task_Info :: struct {
 	using base:          ae.Task_Info,
 	implementation_data: Task_Implementation_Data,
 	scheduler_allocator: mem.Allocator,
-	procedure_context:   utils.Procedure_Context,
+	procedure_context:   procedures.Procedure_Context,
 	mutex:               sync.Mutex,
 	// @atomic
 	waiting_count:       uint,
@@ -74,7 +74,7 @@ taskinfo_call :: proc(task_info: ^Task_Info, task_data: ^Task_Data) {
 	taskdata_from_taskinfo(task_data, task_info)
 
 	sync.atomic_store(&task_info.status, .Running)
-	utils.call(
+	procedures.call(
 		&task_info.implementation_data.procedure_context,
 		(rawptr)(task_info.task_proc),
 		(rawptr)(task_data),
@@ -90,7 +90,7 @@ taskdata_yield :: proc(task_data: ^Task_Data) {
 	task_info := (^Task_Info)(task_data.implementation_data)
 	sync.atomic_store(&task_info.status, .Suspended)
 
-	utils.yield(&task_info.procedure_context)
+	procedures.yield(&task_info.procedure_context)
 }
 
 taskdata_sleep :: proc(task_data: ^Task_Data, wait_time: time.Duration) {
@@ -101,7 +101,7 @@ taskdata_sleep :: proc(task_data: ^Task_Data, wait_time: time.Duration) {
 		task_info.resume_time = time.time_add(time.now(), wait_time)
 	}
 
-	utils.yield(&task_info.procedure_context)
+	procedures.yield(&task_info.procedure_context)
 }
 
 taskdata_await :: proc(task_data: ^Task_Data, tasks: []Task_Id) {
@@ -118,19 +118,19 @@ taskdata_await :: proc(task_data: ^Task_Data, tasks: []Task_Id) {
 		task_info.waiting_for = slice.clone(tasks)
 	}
 
-	utils.yield(&task_info.procedure_context)
+	procedures.yield(&task_info.procedure_context)
 }
 
 taskinfo_resume :: proc(task_info: ^Task_Info) {
 	sync.atomic_store(&task_info.status, .Running)
-	utils.resume(&task_info.procedure_context)
+	procedures.resume(&task_info.procedure_context)
 }
 
 taskdata_force_return :: proc(task_data: ^Task_Data) -> ! {
 	task_info := (^Task_Info)(task_data.implementation_data)
 	sync.atomic_store(&task_info.status, .Finished)
 
-	utils.force_return(&task_info.procedure_context)
+	procedures.force_return(&task_info.procedure_context)
 }
 
 taskdata_set_return_data :: proc(task_data: ^Task_Data, data: []byte) {
@@ -204,7 +204,7 @@ taskinfo_get_return_data :: proc(
 // 		sync.atomic_store(&task_info.status, .Waiting_For_Time)
 
 // 	case .Finished:
-// 		utils.procedurecontext_free(&task_info.implementation_data.procedure_context)
+// 		procedures.procedurecontext_free(&task_info.implementation_data.procedure_context)
 // 		sync.atomic_store(&task_info.status, .Finished)
 
 // 	case .Suspended:

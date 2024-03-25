@@ -9,7 +9,6 @@ import "engine:interface"
 import "engine:loader"
 import "engine:namespace_manager"
 import "engine:scheduler"
-import hacks "engine:scheduler/utils"
 import "engine:storage"
 import "engine:type_manager"
 import ae "shared:amber_engine/common"
@@ -23,7 +22,6 @@ _ :: config
 _ :: utils
 _ :: loader
 _ :: globals
-_ :: hacks
 _ :: storage
 _ :: time
 _ :: namespace_manager
