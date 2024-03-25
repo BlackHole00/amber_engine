@@ -33,7 +33,7 @@ Procedure_Context :: struct {
 // @safety: Do *not* call if the corresponding procedure is being executed with 
 //          this specific Procedure_Context. Freeing a context while it is being 
 //          executed will result in a certain crash.
-// @sources: _procedurecontext_free
+// @sources: _procedurecontext_free is os dependent
 procedurecontext_free :: #force_inline proc(procedure_context: ^Procedure_Context) {
 	_procedurecontext_free(procedure_context)
 }

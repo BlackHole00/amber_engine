@@ -5,7 +5,7 @@ import "core:mem"
 import "core:strings"
 
 ODIN_NAMESPACE_NAMES :: [?]string{"odin", "core", "base"}
-AMBER_ENGINE_NAMESPACE_NAMES :: [?]string{"amber_engine", "ae"}
+AMBER_ENGINE_NAMESPACE_NAMES :: [?]string{"amber_engine", "engine", "ae"}
 
 Namespaced_String :: struct {
 	namespace: Namespace_Id,
