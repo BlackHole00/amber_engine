@@ -29,8 +29,6 @@ _ :: time
 _ :: namespace_manager
 _ :: type_manager
 
-test_
-
 main :: proc() {
 	context = common.default_context()
 	defer common.default_context_deinit()
