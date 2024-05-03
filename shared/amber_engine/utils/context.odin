@@ -5,6 +5,7 @@ import "core:mem"
 import "core:mem/virtual"
 import "core:os"
 import "core:runtime"
+import "shared:mimalloc"
 
 LOGGER_FILE :: "amber_engine.log"
 LOWEST_LOG_LEVEL :: log.Level.Debug when DEBUG else log.Level.Info
@@ -48,7 +49,7 @@ default_context_init :: proc() -> (ok: bool) {
 		return false
 	}
 
-	CONTEXT_DATA.allocator = runtime.default_allocator()
+	CONTEXT_DATA.allocator = mimalloc.allocator()
 	CONTEXT_DATA.temp_allocator = virtual.arena_allocator(&CONTEXT_DATA.temp_arena)
 
 	if DEBUG {

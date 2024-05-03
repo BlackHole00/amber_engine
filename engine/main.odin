@@ -10,6 +10,7 @@ import "engine:loader"
 import "engine:namespace_manager"
 import "engine:storage"
 import "engine:type_manager"
+import "shared:mimalloc"
 import ae "shared:amber_engine/common"
 import "shared:amber_engine/utils"
 
@@ -24,6 +25,7 @@ _ :: storage
 _ :: time
 _ :: namespace_manager
 _ :: type_manager
+_ :: mimalloc
 
 main :: proc() {
 	context = utils.default_context()
