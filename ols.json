@@ -1,8 +1,16 @@
 {
     "collections": [
         {
+            "name": "base",
+            "path": "/opt/homebrew/Cellar/odin/2024-04a_1/libexec/base"
+        },
+        {
+            "name": "core",
+            "path": "/opt/homebrew/Cellar/odin/2024-04a_1/libexec/core"
+        },
+        {
             "name": "vendor",
-            "path": "/Users/vicix/Applications/Odin/vendor"
+            "path": "/opt/homebrew/Cellar/odin/2024-04a_1/libexec/vendor"
         },
         {
             "name": "shared",

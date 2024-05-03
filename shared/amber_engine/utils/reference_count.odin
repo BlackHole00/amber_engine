@@ -1,4 +1,4 @@
-package amber_engine_common
+package amber_engine_utils
 
 import "core:mem"
 import "core:sync"
@@ -26,7 +26,7 @@ Arc :: struct($T: typeid) {
 
 // Allocates a new zero-initialized Rc
 // @thread_safety: Not thread-safe
-rc_new_empty :: proc($T: typeid, allocator: mem.Allocator) -> ^Rc(T) {
+rc_new_empty :: proc($T: typeid, allocator := context.allocator) -> ^Rc(T) {
 	rc := new(T, allocator)
 
 	rc._rc_internal_reference_count = 1
@@ -37,7 +37,7 @@ rc_new_empty :: proc($T: typeid, allocator: mem.Allocator) -> ^Rc(T) {
 
 // Allocates a new initalized with data Rc
 // @thread_safety: Not thread-safe
-rc_new_with_data :: proc(data: $T, allocator: mem.Allocator) -> ^Rc(T) {
+rc_new_with_data :: proc(data: $T, allocator := context.allocator) -> ^Rc(T) {
 	rc := rc_new_empty(Rc(T), allocator)
 
 	rc._rc_internal_data^ = data
@@ -86,7 +86,7 @@ nrc_as_ptr :: proc(rc: ^Rc($T)) -> ^T {
 }
 
 // Allocates a new zero-initialized Arc
-arc_new_empty :: proc($T: typeid, allocator: mem.Allocator) -> ^Arc(T) {
+arc_new_empty :: proc($T: typeid, allocator := context.allocator) -> ^Arc(T) {
 	arc := new(Arc(T), allocator)
 
 	arc._arc_internal_reference_count = 1
@@ -97,7 +97,7 @@ arc_new_empty :: proc($T: typeid, allocator: mem.Allocator) -> ^Arc(T) {
 
 // Allocates a new initalized with data Arc
 // @thread_safety: Thread-safe
-arc_new_with_data :: proc(data: $T, allocator: mem.Allocator) -> ^Arc(T) {
+arc_new_with_data :: proc(data: $T, allocator := context.allocator) -> ^Arc(T) {
 	arc := arc_new_empty(T, allocator)
 
 	arc._arc_internal_data^ = data

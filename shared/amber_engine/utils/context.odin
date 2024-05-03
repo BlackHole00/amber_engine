@@ -1,4 +1,4 @@
-package amber_engine_common
+package amber_engine_utils
 
 import "core:log"
 import "core:mem"

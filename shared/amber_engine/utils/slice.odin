@@ -1,6 +1,4 @@
-package amber_engine_common
-
-import "core:mem"
+package amber_engine_utils
 
 slice_remove_index :: proc(slice: []$T, index: int, allocator := context.allocator) -> []T {
 	assert(index < len(slice))

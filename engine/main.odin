@@ -8,14 +8,12 @@ import "engine:globals"
 import "engine:interface"
 import "engine:loader"
 import "engine:namespace_manager"
-import "engine:scheduler"
 import "engine:storage"
 import "engine:type_manager"
 import ae "shared:amber_engine/common"
 import "shared:amber_engine/utils"
 
 _ :: log
-_ :: scheduler
 _ :: ae
 _ :: interface
 _ :: config
@@ -37,6 +35,16 @@ main :: proc() {
 		config.VERSION.minor,
 		config.VERSION.revision,
 	)
+
+	vec: utils.Async_Vec(int)
+	defer utils.asyncvec_delete(&vec)
+	utils.asyncvec_init_empty(&vec)
+	utils.asyncvec_append(&vec, 1)
+	utils.asyncvec_set(vec, 1, 10)
+	utils.asyncvec_reserve(&vec, 10)
+	log.info("len: ", utils.asyncvec_len(vec))
+	log.info("data: ", utils.asyncvec_get(vec, 1)^)
+	utils.asyncvec_pop(&vec)
 
 	config.config_from_file_or_default(&globals.config, ".")
 	defer config.config_free(globals.config)

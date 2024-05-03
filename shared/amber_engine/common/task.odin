@@ -29,7 +29,7 @@ Task_Proc :: #type proc(task: ^Task_Data)
 Task_Descriptor :: struct {
 	user_index:             int,
 	user_data:              rawptr,
-	// user_priority:          Task_Priority,
+	user_priority:          Task_Priority,
 	user_context:           runtime.Context,
 	task_proc:              Task_Proc,
 	execute_on_main_thread: bool,
@@ -49,6 +49,5 @@ Task_Info :: struct {
 	status:               Task_Status,
 	user_submission_time: time.Time,
 	resume_time:          time.Time,
-	return_value:         []byte,
 }
 

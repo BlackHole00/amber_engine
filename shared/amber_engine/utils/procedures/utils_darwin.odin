@@ -1,4 +1,4 @@
-package amber_engine_scheduler_utils
+package amber_engine_utils_procedures
 
 import "base:runtime"
 import "core:sys/darwin"
