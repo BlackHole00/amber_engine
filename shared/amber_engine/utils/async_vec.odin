@@ -10,26 +10,29 @@ ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 // @warning: DOES NOT CURRENTLY WORK
 Async_Vec :: struct($T: typeid) {
 	// @atomic
-	descriptor: ^Arc(Async_Vec_Desciptor(T)),
+	descriptor: ^Async_Vec_Desciptor(T),
 	// @final
 	// @values: @atomic
 	// @note: needs to be a multi-pointer because it needs to be atomic
 	buckets: [][^]T,
 	allocator: runtime.Allocator,
+	temp_allocator: runtime.Allocator,
 }
 
 asyncvec_init_empty :: proc(
 	vec: ^Async_Vec($T), 
 	max_buckets_count := ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT, 
 	allocator := context.allocator,
+	temp_allocator := context.temp_allocator,
 ) {
 	context.allocator = allocator
 	vec.allocator = allocator
+	vec.temp_allocator = temp_allocator
 
 	vec.buckets = make([][^]T, max_buckets_count)
 	asyncvec_set_bucket(vec, make([^]T, ASYNCVEC_FIRST_BUCKET_SIZE), 0)
 
-	vec.descriptor = arc_new(Async_Vec_Desciptor(T))
+	vec.descriptor = new(Async_Vec_Desciptor(T), temp_allocator)
 }
 
 asyncvec_init_with_size :: proc(
@@ -46,8 +49,6 @@ asyncvec_delete :: proc(vec: ^Async_Vec($T)) {
 		asyncvecbucket_delete(bucket, vec.allocator)
 	}
 	delete(vec.buckets, vec.allocator)
-
-	rc_force_free(vec.descriptor)
 }
 
 asyncvec_get :: proc(vec: Async_Vec($T), index: int) -> ^T {
@@ -59,11 +60,8 @@ asyncvec_set :: proc(vec: Async_Vec($T), index: int, value: T) {
 	asyncvec_get(vec, index)^ = value
 }
 
-asyncvec_len :: proc(vec: Async_Vec($T)) -> int {
-	descriptor_ptr := rc_clone(vec.descriptor)
-	defer rc_drop(descriptor_ptr)
-
-	descriptor := rc_as_ptr(descriptor_ptr)^
+asyncvec_len :: proc(vec: ^Async_Vec($T)) -> int {
+	descriptor := intrinsics.atomic_load(&vec.descriptor)^
 
 	descriptor.size = vec.descriptor.size
 	if descriptor.write_operation.pending {
@@ -74,11 +72,10 @@ asyncvec_len :: proc(vec: Async_Vec($T)) -> int {
 }
 
 asyncvec_append :: proc(vec: ^Async_Vec($T), element: T) {
-	next_descriptor: ^Arc(Async_Vec_Desciptor(T))
+	next_descriptor: ^Async_Vec_Desciptor(T)
 
 	for {
-		descriptor := rc_clone(vec.descriptor)
-		defer rc_drop(descriptor)
+		descriptor := intrinsics.atomic_load(&vec.descriptor)
 		asyncvec_complete_write_operation(vec, &descriptor.write_operation)
 
 		bucket := highest_bit(descriptor.size + ASYNCVEC_FIRST_BUCKET_SIZE) - ASYNCVEC_FIRST_BUCKET_SIZE_LOG2
@@ -86,7 +83,7 @@ asyncvec_append :: proc(vec: ^Async_Vec($T), element: T) {
 			asyncvec_alloc_bucket(vec, (int)(bucket))
 		}
 
-		next_descriptor = arc_new(Async_Vec_Desciptor(T), vec.allocator)
+		next_descriptor = new(Async_Vec_Desciptor(T), vec.temp_allocator)
 		next_descriptor.size = descriptor.size + 1
 		asyncvecwritedescriptor_init(
 			&next_descriptor.write_operation,
@@ -100,14 +97,10 @@ asyncvec_append :: proc(vec: ^Async_Vec($T), element: T) {
 			descriptor,
 			next_descriptor,
 		); !ok {
-			rc_force_free(next_descriptor)
 			continue
+		} else {
+			break
 		}
-
-		// This double drop will free the descriptor since it should be no 
-		// longer in use
-		rc_drop(descriptor)
-		break
 	}
 
 	asyncvec_complete_write_operation(vec, &next_descriptor.write_operation)
@@ -115,13 +108,12 @@ asyncvec_append :: proc(vec: ^Async_Vec($T), element: T) {
 
 asyncvec_pop :: proc(vec: ^Async_Vec($T)) -> (popped_elem: T) {
 	for {
-		descriptor := rc_clone(vec.descriptor)
-		defer rc_drop(descriptor)
+		descriptor := intrinsics.atomic_load(&vec.descriptor)
 		asyncvec_complete_write_operation(vec, &descriptor.write_operation)
 
 		popped_elem = asyncvec_get(vec^, descriptor.size - 1)^
 
-		next_descriptor := arc_new(Async_Vec_Desciptor(T), vec.allocator)
+		next_descriptor := new(Async_Vec_Desciptor(T), vec.temp_allocator)
 		next_descriptor.size = descriptor.size - 1
 
 		if _, ok := intrinsics.atomic_compare_exchange_strong(
@@ -129,14 +121,10 @@ asyncvec_pop :: proc(vec: ^Async_Vec($T)) -> (popped_elem: T) {
 			descriptor,
 			next_descriptor,
 		); !ok {
-			rc_force_free(next_descriptor)
 			continue
+		} else {
+			break
 		}
-
-		// This double drop will free the descriptor since it should be no 
-		// longer in use
-		rc_drop(descriptor)
-		break
 	}
 
 	return
@@ -238,7 +226,7 @@ highest_bit :: proc(x: $T) -> uint where intrinsics.type_is_numeric(T) {
 	return (uint)((size_of(T) * 8) - intrinsics.count_leading_zeros(x)) - 1
 }
 
-// @(private="file")
+@(private="file")
 item_index_to_bucket_index :: proc(#any_int index: uint) -> (
 	bucket_index: uint, 
 	element_index_in_bucket: uint,
