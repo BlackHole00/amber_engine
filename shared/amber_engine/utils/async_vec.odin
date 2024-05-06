@@ -7,6 +7,7 @@ import "base:runtime"
 ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 
 // @thread_safety: Thread safe. The allocator is expected to be thread safe.
+// @warning: DOES NOT CURRENTLY WORK
 Async_Vec :: struct($T: typeid) {
 	// @atomic
 	descriptor: ^Arc(Async_Vec_Desciptor(T)),
@@ -62,7 +63,7 @@ asyncvec_len :: proc(vec: Async_Vec($T)) -> int {
 	descriptor_ptr := rc_clone(vec.descriptor)
 	defer rc_drop(descriptor_ptr)
 
-	descriptor := descriptor_ptr^
+	descriptor := rc_as_ptr(descriptor_ptr)^
 
 	descriptor.size = vec.descriptor.size
 	if descriptor.write_operation.pending {
@@ -237,7 +238,7 @@ highest_bit :: proc(x: $T) -> uint where intrinsics.type_is_numeric(T) {
 	return (uint)((size_of(T) * 8) - intrinsics.count_leading_zeros(x)) - 1
 }
 
-@(private="file")
+// @(private="file")
 item_index_to_bucket_index :: proc(#any_int index: uint) -> (
 	bucket_index: uint, 
 	element_index_in_bucket: uint,

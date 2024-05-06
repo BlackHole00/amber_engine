@@ -3,6 +3,7 @@ package main
 import "base:intrinsics"
 import "core:log"
 import "core:time"
+import "core:os"
 import "engine:config"
 import "engine:globals"
 import "engine:interface"
@@ -13,6 +14,7 @@ import "engine:type_manager"
 import "shared:mimalloc"
 import ae "shared:amber_engine/common"
 import "shared:amber_engine/utils"
+import "core:thread"
 
 _ :: log
 _ :: ae
@@ -23,6 +25,8 @@ _ :: loader
 _ :: globals
 _ :: storage
 _ :: time
+_ :: os
+_ :: thread
 _ :: namespace_manager
 _ :: type_manager
 _ :: mimalloc
@@ -38,15 +42,8 @@ main :: proc() {
 		config.VERSION.revision,
 	)
 
-	vec: utils.Async_Vec(int)
-	defer utils.asyncvec_delete(&vec)
-	utils.asyncvec_init_empty(&vec)
-	utils.asyncvec_append(&vec, 1)
-	utils.asyncvec_set(vec, 1, 10)
-	utils.asyncvec_reserve(&vec, 10)
-	log.info("len: ", utils.asyncvec_len(vec))
-	log.info("data: ", utils.asyncvec_get(vec, 1)^)
-	utils.asyncvec_pop(&vec)
+	context.allocator = mimalloc.allocator()
+	test_vec()
 
 	config.config_from_file_or_default(&globals.config, ".")
 	defer config.config_free(globals.config)
@@ -75,5 +72,28 @@ main :: proc() {
 	// loader.modmanager_force_load_queued_mods(&globals.mod_manager)
 
 	// log.infof("Deinitializing engine...")
+}
+
+test_vec :: proc() {
+	thread_proc :: proc(vec: ^utils.Async_Vec(int)) {
+		for i in 0..<10000 {
+			utils.asyncvec_append(vec, i)
+			log.info(os.current_thread_id(), utils.asyncvec_len(vec^))
+		}
+	}
+
+	vec: utils.Async_Vec(int)
+	defer utils.asyncvec_delete(&vec)
+	utils.asyncvec_init_empty(&vec, 32)
+
+	log.info(utils.item_index_to_bucket_index(140))
+
+	threads: [2]^thread.Thread
+	for &thr in threads {
+		thr = thread.create_and_start_with_data(&vec, auto_cast thread_proc, context)
+	}
+	thread.join_multiple(..threads[:])
+
+	assert(utils.asyncvec_len(vec) == 10000 * 2)
 }
 
