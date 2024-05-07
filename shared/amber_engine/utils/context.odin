@@ -4,7 +4,7 @@ import "core:log"
 import "core:mem"
 import "core:mem/virtual"
 import "core:os"
-import "core:runtime"
+import "base:runtime"
 import "shared:mimalloc"
 
 LOGGER_FILE :: "amber_engine.log"
