@@ -46,9 +46,6 @@ main :: proc() {
 		config.VERSION.revision,
 	)
 
-	context.allocator = mimalloc.allocator()
-	test_vec()
-
 	config.config_from_file_or_default(&globals.config, ".")
 	defer config.config_free(globals.config)
 	log.infof("Using config %#v", globals.config)
@@ -69,97 +66,5 @@ main :: proc() {
 	// loader.modmanager_force_load_queued_mods(&globals.mod_manager)
 
 	// log.infof("Deinitializing engine...")
-}
-
-test_vec :: proc() {
-	thread_proc :: proc(vec: ^utils.Async_Vec(int)) {
-		for i in 0..<100000 {
-			utils.asyncvec_append(vec, i)
-
-			// utils.asyncvec_set(vec^, 0, i)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-			// utils.asyncvec_get(vec^, 0)
-		}
-	}
-
-	thread_proc_mutex :: proc(vec: ^struct {
-		vec: [dynamic]int,
-		mutex: sync.Mutex,
-	}) {
-		for i in 0..<100000 {
-			if sync.mutex_guard(&vec.mutex) {
-				append(&vec.vec, i)
-			}
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	vec.vec[0] = i
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-			// if sync.mutex_guard(&vec.mutex) {
-			// 	_ = vec.vec[0]
-			// }
-		}
-	}
-
-	vec: utils.Async_Vec(int)
-	defer utils.asyncvec_delete(&vec)
-	utils.asyncvec_init_empty(&vec, 32)
-
-	threads: [8]^thread.Thread
-	start := time.now()
-	for &thr in threads {
-		thr = thread.create_and_start_with_data(&vec, auto_cast thread_proc, context, .Normal, true)
-	}
-	thread.join_multiple(..threads[:])
-	stop := time.now()
-
-	log.info("The async_vec took", time.diff(start, stop), utils.asyncvec_len(vec))
-
-	data: struct {
-		vec: [dynamic]int,
-		mutex: sync.Mutex,
-	}
-	data.vec = make([dynamic]int)
-	start = time.now()
-	for &thr in threads {
-		thr = thread.create_and_start_with_data(&data, auto_cast thread_proc_mutex, context, .Normal, true)
-	}
-	thread.join_multiple(..threads[:])
-	stop = time.now()
-
-	log.info("The mutexed vec took", time.diff(start, stop), len(data.vec))
 }
 

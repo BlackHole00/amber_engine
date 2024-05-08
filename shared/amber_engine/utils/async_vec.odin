@@ -21,7 +21,7 @@ ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 //        when reserving storage.
 //        The only locking procedure are `asyncvec_append` and 
 //        `asyncvec_resize`, the other procedures are lock less.
-// @performace: While in multithreaded scenarios this vector is way faster from
+// @performace: While in multithreaded scenarios this vector is way faster than
 //              the default dynamic one, keep in mind that getting and setting
 //              a location requires a decode (still O(1), but slower than a real
 //              vector one), so in singlethreaded scenarios prefer `[dynamic]T`.
@@ -94,6 +94,8 @@ asyncvec_delete :: proc(vec: ^Async_Vec($T)) #no_bounds_check {
 }
 
 // Gets the address of an element of the vector specified by its index
+// @returns: The address of the specified element. This address is guaranteed to
+//           be valid for the entire lifetime of the object
 // @thread_safety: Thread-safe
 asyncvec_get :: proc(vec: Async_Vec($T), index: int) -> ^T #no_bounds_check {
 	when ASYNCVEC_DO_BOUNDS_CHECK {
