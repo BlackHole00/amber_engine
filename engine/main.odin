@@ -2,7 +2,6 @@ package main
 
 import "base:runtime"
 import "base:intrinsics"
-import "core:sync"
 import "core:log"
 import "core:os"
 import "engine:config"
@@ -12,7 +11,6 @@ import "engine:loader"
 import "engine:namespace_manager"
 import "engine:storage"
 import "engine:type_manager"
-import "shared:mimalloc"
 import ae "shared:amber_engine/common"
 import "shared:amber_engine/utils"
 import "core:thread"
@@ -32,7 +30,6 @@ _ :: os
 _ :: thread
 _ :: namespace_manager
 _ :: type_manager
-_ :: mimalloc
 _ :: time
 
 main :: proc() {

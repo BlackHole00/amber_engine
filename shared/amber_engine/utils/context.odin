@@ -5,7 +5,7 @@ import "core:mem"
 import "core:mem/virtual"
 import "core:os"
 import "base:runtime"
-import "shared:mimalloc"
+import "shared:amber_engine/mimalloc"
 
 LOGGER_FILE :: "amber_engine.log"
 LOWEST_LOG_LEVEL :: log.Level.Debug when DEBUG else log.Level.Info
