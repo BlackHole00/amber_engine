@@ -2,14 +2,13 @@ package amber_engine_utils
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:sync"
 
 // This should allow for 2^(3+16-1) = 2^18 = 262144 locations
 ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 
-// The Async_Vec is a thread safe data structure that can be used as a dynamic
-// vector (`[dynamic]T`) replacement (with a few caveats). If the vector is not 
-// shared between threads consider using `[dynamic]T` instead.
+// The Async_Vec is a thread safe lockless data structure that can be used as a
+// dynamic vector (`[dynamic]T`) replacement (with a few caveats). If the vector
+// is not shared between threads consider using `[dynamic]T` instead.
 // @parameters: T = The type stored by the vector
 // @note: Once a location is allocated it will be the same for the lifetime of 
 //        the object, since the vector does not do reallocations. It is thus 
@@ -19,15 +18,13 @@ ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 //        The vector can be resized, but its capacity can only grow, this is 
 //        done to garantee thread safety. It is suggested to be very carefull
 //        when reserving storage.
-//        The only locking procedure are `asyncvec_append` and 
-//        `asyncvec_resize`, the other procedures are lock less.
 // @performace: While in multithreaded scenarios this vector is way faster than
 //              the default dynamic one, keep in mind that getting and setting
 //              a location requires a decode (still O(1), but slower than a real
 //              vector one), so in singlethreaded scenarios prefer `[dynamic]T`.
 // @thread_safety: Thread safe. The allocator is expected to be thread safe.
 Async_Vec :: struct($T: typeid) {
-	// @mutex: mutex (only on write)
+	// @atomic: only on write
 	size: int,
 	// Contains the data of the vector. Every bucket is sized as 2 * the size of
 	// the previous, while the first is sized ASYNCVEC_FIRST_BUCKET_SIZE.
@@ -37,10 +34,6 @@ Async_Vec :: struct($T: typeid) {
 	// @values: @atomic
 	// @note: needs to be a multi-pointer because it needs to be atomic.
 	buckets: [][^]T,
-	// Locks the vector when the size changes (thus when an append or pop 
-	// operation occurs)
-	// @final
-	mutex: sync.Mutex,
 	// @final
 	allocator: runtime.Allocator,
 }
@@ -135,38 +128,59 @@ asyncvec_len :: #force_inline proc(vec: Async_Vec($T)) -> int {
 // Returns the capacity of an Async_Vec
 // @thread_safety: Thread-safe
 asyncvec_cap :: #force_inline proc(vec: Async_Vec($T)) -> int {
-	return 1 << (len(vec.buckets) + ASYNCVEC_FIRST_BUCKET_SIZE_LOG2)
+	return (int)((uint)(1) << (len(vec.buckets) + ASYNCVEC_FIRST_BUCKET_SIZE_LOG2))
 }
 
 // Appends a value to the back of an Async_Vec
-// @performance: locking
 // @thread_safety: Thread-safe
 asyncvec_append :: proc(vec: ^Async_Vec($T), element: T) {
-	sync.mutex_guard(&vec.mutex)
+	for {
+		current_size := vec.size
+		new_size := vec.size + 1
 
-	bucket := highest_bit(vec.size + ASYNCVEC_FIRST_BUCKET_SIZE) - ASYNCVEC_FIRST_BUCKET_SIZE_LOG2
-	if !asyncvec_is_bucket_usable(vec^, (int)(bucket)) {
-		asyncvec_alloc_bucket(vec, (int)(bucket))
+		bucket := highest_bit(current_size + ASYNCVEC_FIRST_BUCKET_SIZE) - ASYNCVEC_FIRST_BUCKET_SIZE_LOG2
+		if !asyncvec_is_bucket_usable(vec^, (int)(bucket)) {
+			asyncvec_alloc_bucket(vec, (int)(bucket))
+		}
+
+		if _, ok := intrinsics.atomic_compare_exchange_strong(
+			&vec.size,
+			current_size, 
+			new_size,
+		); ok {
+			asyncvec_set(vec^, current_size, element)
+			return
+		}
 	}
-
-	vec.size += 1
 }
 
 // Resizes an Async_Vec
-// @performance: locking
 // @thread_safety: Thread-safe
 asyncvec_resize :: proc(vec: ^Async_Vec($T), size: int) {
-	asyncvec_reserve(vec, size)
+	for {
+		current_size := vec.size
+		new_size := size
+		
+		asyncvec_reserve(vec, size)
 
-	if sync.mutex_guard(vec.mutex) {
-		vec.size = size
+		if _, ok := intrinsics.atomic_compare_exchange_strong(
+			&vec.size,
+			current_size, 
+			new_size,
+		); ok {
+			return
+		}
 	}
 }
 
 // Specifies the capacity of an Async_Vec
 // @note: this procedure does not shrink the vector
 // @thread_safety: Thread-safe
-asyncvec_reserve :: proc(vec: ^Async_Vec($T), size: int) {
+asyncvec_reserve :: proc(vec: ^Async_Vec($T), cap: int) {
+	if (cap <= asyncvec_cap(vec^)) {
+		return
+	}
+
 	i := highest_bit(vec.size + ASYNCVEC_FIRST_BUCKET_SIZE - 1)
 	if i >= ASYNCVEC_FIRST_BUCKET_SIZE_LOG2 {
 		i -= ASYNCVEC_FIRST_BUCKET_SIZE_LOG2
@@ -174,7 +188,7 @@ asyncvec_reserve :: proc(vec: ^Async_Vec($T), size: int) {
 		i = 0
 	}
 
-	for i < (highest_bit(size + ASYNCVEC_FIRST_BUCKET_SIZE - 1) - ASYNCVEC_FIRST_BUCKET_SIZE_LOG2) {
+	for i < (highest_bit(cap + ASYNCVEC_FIRST_BUCKET_SIZE - 1) - ASYNCVEC_FIRST_BUCKET_SIZE_LOG2) {
 		i += 1
 		asyncvec_alloc_bucket(vec, (int)(i))
 	}
