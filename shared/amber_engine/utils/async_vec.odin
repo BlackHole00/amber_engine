@@ -18,6 +18,9 @@ ASYNCVEC_BUCKETS_DEFAULT_MAX_COUNT :: 16
 //        The vector can be resized, but its capacity can only grow, this is 
 //        done to garantee thread safety. It is suggested to be very carefull
 //        when reserving storage.
+//        Please note that since we are working with register sized atomic 
+//        variables the `atomic_store` and `atomic_load` procedures are
+//        not needed.
 // @performace: While in multithreaded scenarios this vector is way faster than
 //              the default dynamic one, keep in mind that getting and setting
 //              a location requires a decode (still O(1), but slower than a real
