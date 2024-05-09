@@ -3,17 +3,57 @@ package tests_utils
 import "core:testing"
 import "core:thread"
 import "shared:amber_engine/utils"
-import ae_test "shared:amber_engine/utils/testing"
+
+@(test)
+idgenerator_generate :: proc(test: ^testing.T) {
+	LOOP_COUNT :: 100000
+
+	SCOPED_TIMING_REPORT()
+	context.allocator, _ = SCOPED_MEM_CHECK(test)
+
+	generator: utils.Id_Generator(int)
+	testing.expect_value(
+		test,
+		utils.idgenerator_peek_next(&generator),
+		0,
+	)
+
+	for _ in 0..<LOOP_COUNT {
+		utils.idgenerator_generate(&generator)
+	}
+
+	testing.expect_value(
+		test,
+		utils.idgenerator_peek_next(&generator),
+		LOOP_COUNT,
+	)
+}
+
+// Odin does not support checking tests which cause assertions on purpose.
+// This test is disabled
+@(test)
+idgenerator_overflow :: proc(test: ^testing.T) {
+	SCOPED_TIMING_REPORT()
+	context.allocator, _ = SCOPED_MEM_CHECK(test)
+	context.assertion_failure_proc = TEST_SHOULD_ASSERT(test)
+
+	generator: utils.Id_Generator(int)
+	generator.counter = max(int)
+
+	utils.idgenerator_generate(&generator)
+}
 
 @(test)
 idgenerator_datarace :: proc(test: ^testing.T) {
-	ae_test.SCOPED_TIMING_REPORT()
 	LOOP_COUNT :: 100000
+
+	SCOPED_TIMING_REPORT()
+	context.allocator, _ = SCOPED_MEM_CHECK(test)
 
 	thread_proc :: proc(generator: ^utils.Id_Generator(int)) {
 		for _ in 0..<LOOP_COUNT {
 			utils.idgenerator_generate(generator)
-			assert(!utils.idgenerator_is_id_valid(generator^, max(int)))
+			assert(!utils.idgenerator_is_id_valid(generator, max(int)))
 		}
 	}
 
@@ -33,7 +73,10 @@ idgenerator_datarace :: proc(test: ^testing.T) {
 
 	testing.expect(
 		test,
-		utils.idgenerator_peek_next(generator) == LOOP_COUNT * TEST_THREAD_COUNT,
+		utils.idgenerator_peek_next(&generator) == LOOP_COUNT * TEST_THREAD_COUNT,
 		"Invalid final id",
 	)
 }
+
+// @(test)
+// idcyclicgenerator_datarace
