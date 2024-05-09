@@ -28,6 +28,18 @@
             "preLaunchTask": "unix-build-testmod"
         },
         {
+            "name": "Unix - Debug Utils Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/tests_utils.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+        },
+        {
             "name": "Windows - Debug Engine",
             "type": "cppvsdbg",
             "request": "launch",
@@ -50,6 +62,17 @@
             "environment": [],
             "externalConsole": false,
             "preLaunchTask": "windows-build-testmod"
+        },
+        {
+            "name": "Windows - Debug Utils Test",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/tests_utils.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
         }
     ]
 }
