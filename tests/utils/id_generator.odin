@@ -29,8 +29,6 @@ idgenerator_generate :: proc(test: ^testing.T) {
 	)
 }
 
-// Odin does not support checking tests which cause assertions on purpose.
-// This test is disabled
 @(test)
 idgenerator_overflow :: proc(test: ^testing.T) {
 	SCOPED_TIMING_REPORT()
@@ -78,5 +76,3 @@ idgenerator_datarace :: proc(test: ^testing.T) {
 	)
 }
 
-// @(test)
-// idcyclicgenerator_datarace

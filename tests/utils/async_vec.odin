@@ -3,12 +3,13 @@ package tests_utils
 import "core:testing"
 import "core:thread"
 import "shared:amber_engine/utils"
-import ae_test "shared:amber_engine/utils/testing"
 
 @(test)
 asyncvec_datarace :: proc(test: ^testing.T) {
-	ae_test.SCOPED_TIMING_REPORT()
 	LOOP_COUNT :: 100000
+
+	SCOPED_TIMING_REPORT()
+	context.allocator, _ = SCOPED_MEM_CHECK(test)
 
 	lockless1_threadproc :: proc(vec: ^utils.Async_Vec(int)) {
 		for _ in 0 ..< LOOP_COUNT {
