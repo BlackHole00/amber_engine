@@ -27,21 +27,33 @@ end_scoped_mem_check :: proc(
 	defer free(tracking_allocator, tracking_allocator.backing)
 
 	for bad_free in tracking_allocator.bad_free_array {
-		fmt.printf("[memory: %s] Bad free: %p - %v", bad_free.memory, bad_free.memory)
+		fmt.printf(
+			"[memory: %s] Bad free: 0x%p - %v\n",
+			location.procedure,
+			bad_free.memory,
+			bad_free.location,
+		)
 	}
 	for _, leak in tracking_allocator.allocation_map {
-		fmt.printf("[memory: %s] Memory leak: %p - %v", leak.memory, leak.location)
+		fmt.printf(
+			"[memory: %s] Memory leak: 0x%p - %v\n",
+			location.procedure,
+			leak.memory,
+			leak.location,
+		)
 	}
 
 	testing.expectf(
 		test, 
 		len(tracking_allocator.bad_free_array) == 0,
 		"Bad free(s) detected",
+		loc = location,
 	)
 	testing.expectf(
 		test,
 		len(tracking_allocator.allocation_map) == 0,
 		"Memory leak(s) detected",
+		loc = location,
 	)
 }
 
