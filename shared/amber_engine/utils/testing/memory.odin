@@ -8,6 +8,7 @@ import "core:fmt"
 @(deferred_in_out=end_scoped_mem_check)
 SCOPED_MEM_CHECK :: proc(
 	test: ^testing.T,
+	assert_instead_of_expecting := false,
 	location := #caller_location,
 ) -> (mem.Allocator, ^mem.Tracking_Allocator) {
 	tracking_allocator := new(mem.Tracking_Allocator)
@@ -19,6 +20,7 @@ SCOPED_MEM_CHECK :: proc(
 @(private)
 end_scoped_mem_check :: proc(
 	test: ^testing.T,
+	assert_instead_of_expecting: bool,
 	location: runtime.Source_Code_Location,
 	_: mem.Allocator,
 	tracking_allocator: ^mem.Tracking_Allocator,
@@ -43,17 +45,30 @@ end_scoped_mem_check :: proc(
 		)
 	}
 
-	testing.expectf(
-		test, 
-		len(tracking_allocator.bad_free_array) == 0,
-		"Bad free(s) detected",
-		loc = location,
-	)
-	testing.expectf(
-		test,
-		len(tracking_allocator.allocation_map) == 0,
-		"Memory leak(s) detected",
-		loc = location,
-	)
+	if assert_instead_of_expecting {
+		assert(
+			len(tracking_allocator.bad_free_array) == 0,
+			"Bad free(s) detected",
+			loc = location,
+		)
+		assert(
+			len(tracking_allocator.allocation_map) == 0,
+			"Memory leak(s) detected",
+			loc = location,
+		)
+	} else {
+		testing.expectf(
+			test, 
+			len(tracking_allocator.bad_free_array) == 0,
+			"Bad free(s) detected",
+			loc = location,
+		)
+		testing.expectf(
+			test,
+			len(tracking_allocator.allocation_map) == 0,
+			"Memory leak(s) detected",
+			loc = location,
+		)
+	}
 }
 
