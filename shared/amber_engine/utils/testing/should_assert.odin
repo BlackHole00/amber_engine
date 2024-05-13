@@ -12,7 +12,7 @@ TEST_SHOULD_ASSERT :: proc(
 	location := #caller_location,
 ) -> runtime.Assertion_Failure_Proc {
 	@(optimization_mode="none")
-	assertion_proc :: proc(
+	assertion_proc :: #force_no_inline proc(
 		prefix: string,
 		message: string,
 		loc: runtime.Source_Code_Location,
